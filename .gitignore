@@ -1,0 +1,100 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.vercel
+
+# Docker
+.docker-data/
+
+# Standalone Next.js
+/.next/standalone/
+/.next/static/
+
+# Backups (gerados em produção)
+/backups/
+
+# Build artifacts de produção (NÃO commitar — contém o app pronto pra subir)
+/dist/
+/.next/standalone/.env
+
+# Dev logs do projeto
+/dev-*.log
+/dev-server.pid
+/dev-output.log
+/dev-stderr.log
+/dev-err.log
+
+# Certificados locais
+/certbot/
+
+# OS
+Thumbs.db
+
+# Prisma local
+/prisma/.env
+
+# IDX state (Google IDX, opcional)
+.idx/
+
+# Arquivos temporários / backup de config (causam erro de compilação)
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Next.js temporários com hash (interferem no import)
+*.next.config.*
+*.tsbuildinfo.*
+tsconfig.tsbuildinfo
+
+# Backups de editor
+.vscode/
+.idea/
+
+# Lock files locais (NÃO comitar; mantenha só package-lock.json)
+yarn.lock
+bun.lockb
+pnpm-lock.yaml

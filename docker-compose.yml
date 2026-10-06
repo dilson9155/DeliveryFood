@@ -1,0 +1,85 @@
+# ============================================================
+# docker-compose para produção em VPS Hostinger
+# - app:  Next.js standalone
+# - db:   PostgreSQL 16
+# ============================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: delicias-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - delicias-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    container_name: delicias-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-delicias}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-delicias}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - delicias-net
+
+  # Renovação automática do certificado Let's Encrypt (opcional)
+  # Para usar, descomente e configure o domínio no .env
+  # certbot:
+  #   image: certbot/certbot
+  #   container_name: delicias-cert
+  #   volumes:
+  #     - ./certbot/conf:/etc/letsencrypt
+  #     - ./certbot/www:/var/www/certbot
+  #   command: certonly --webroot --webroot-path=/var/www/certbot --email ${LE_EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+
+  # Evolution API — WhatsApp (opcional).
+  # Subir se quiser usar o módulo de notificações via WhatsApp.
+  # Documentação: https://doc.evolution-api.com
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: delicias-evolution
+    restart: unless-stopped
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      SERVER_TYPE: http
+    volumes:
+      - evolution-data:/evolution/store
+    networks:
+      - delicias-net
+
+volumes:
+  pgdata:
+    name: delicias-pgdata
+  evolution-data:
+    name: delicias-evolution-data
+
+networks:
+  delicias-net:
+    name: delicias-net
