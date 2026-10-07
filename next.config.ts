@@ -3,10 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Habilita build standalone (imagem Docker menor, sem node_modules no output)
   output: "standalone",
-  // Configuração do turbopack
-  turbopack: {
-    root: process.cwd(),
-  },
   // Trust Hostinger proxy / domínio
   poweredByHeader: false,
   experimental: {

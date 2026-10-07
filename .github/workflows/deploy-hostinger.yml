@@ -1,30 +1,108 @@
-name: Deploy to Hostinger
+name: Deploy to Hostinger Business
 
+# Gatilhos:
+#  - Push em main           -> deploya automatico
+#  - workflow_dispatch      -> deploya manualmente (botao "Run workflow" no GitHub)
 on:
   push:
     branches: [main]
-  workflow_dispatch:    # permite disparar manualmente pelo GitHub UI
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Trigger deploy on VPS
-        uses: appleboy/ssh-action@v1.0.3
+      # 1. Pegar codigo
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Instalar Node.js 22 (igual local + Hostinger)
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # 3. Instalar dependencias
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # 4. Gerar cliente Prisma
+      - name: Prisma generate
+        run: npx prisma generate
+
+      # 5. Build standalone (gera .next/standalone/)
+      - name: Build Next.js standalone
+        run: |
+          NODE_PATH=$(pwd)/node_modules NODE_OPTIONS="--max-old-space-size=6144" npm run build
+        env:
+          # Variaveis de banco minimas para o build nao quebrar
+          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public"
+          AUTH_SECRET: "build-time-placeholder-not-used-at-runtime"
+
+      # 6. Empacotar .next/standalone (Next.js gera um servidor minimo)
+      - name: Pack build artifacts
+        run: |
+          mkdir -p deploy-bundle
+          # Copia o servidor standalone
+          cp -r .next/standalone/* deploy-bundle/
+          # Os arquivos estaticos (CSS, JS, imagens) ficam separados
+          mkdir -p deploy-bundle/.next/static
+          cp -r .next/static/* deploy-bundle/.next/static/
+          # Public (imagens publicas)
+          cp -r public/* deploy-bundle/ 2>/dev/null || true
+          # Script package.json minimo para Hostinger reconhecer entry point
+          cat > deploy-bundle/package.json <<'JSON'
+          {
+            "name": "delicias-das-estacoes",
+            "version": "1.0.0",
+            "scripts": {
+              "start": "NODE_ENV=production node server.js"
+            }
+          }
+          JSON
+          ls -la deploy-bundle
+
+      # 7. Criar .env com segredos do GitHub (vai junto no deploy)
+      - name: Create production .env
+        run: |
+          cat > deploy-bundle/.env <<EOF
+          DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          AUTH_SECRET="${{ secrets.AUTH_SECRET }}"
+          AUTH_TRUST_HOST=true
+          NEXTAUTH_URL=https://${{ secrets.HOSTINGER_DOMAIN }}
+          NODE_ENV=production
+          PORT=3000
+          ASAAS_ENV=sandbox
+          ASAAS_API_KEY=${{ secrets.ASAAS_API_KEY }}
+          EVOLUTION_API_URL=${{ secrets.EVOLUTION_API_URL }}
+          EVOLUTION_API_KEY=${{ secrets.EVOLUTION_API_KEY }}
+          EVOLUTION_INSTANCE=${{ secrets.EVOLUTION_INSTANCE }}
+          EOF
+
+      # 8. SFTP upload pro Hostinger (pasta do subdominio)
+      - name: Upload via SFTP
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USERNAME }}
           password: ${{ secrets.HOSTINGER_PASSWORD }}
           port: 22
-          script: |
-            cd /var/www/delivery-food
-            bash deploy/update.sh
+          target: ${{ secrets.HOSTINGER_TARGET_PATH }}
+          source: "deploy-bundle/*"
+          strip_components: 0
+          rm: true   # Limpa arquivos antigos no servidor antes do upload
+          debug: true
 
+      # 9. Notificar resultado
       - name: Notify
         if: always()
         run: |
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ Deploy concluído: https://deliveryfood.elitesistemas.io"
+            echo "✅ Deploy concluido!"
+            echo "🌐 Acesse: https://${{ secrets.HOSTINGER_DOMAIN }}"
           else
-            echo "❌ Deploy falhou! Confira: https://github.com/dilson9155/Delivery-Food/actions"
+            echo "❌ Deploy falhou!"
+            echo "🔗 Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           fi
