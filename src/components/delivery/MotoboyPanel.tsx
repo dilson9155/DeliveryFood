@@ -407,7 +407,9 @@ export function MotoboyPanel({
               current={myPos}
               routePoints={selected.lastLocations ?? []}
               roadRoute={selected.route ?? null}
-              height={420}
+              height={440}
+              zoom={17}
+              follow
             />
 
             {selected.status === "OUT_FOR_DELIVERY" && !tracking && (

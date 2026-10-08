@@ -49,8 +49,10 @@ export function TrackingMap({
   routePoints = [],
   roadRoute = null,
   height = 360,
-  zoom = 14,
-}: TrackingMapProps) {
+  zoom = 16,
+  follow = true,
+  heading = 0,
+}: TrackingMapProps & { follow?: boolean; heading?: number }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<unknown>(null);
   const layersRef = useRef<{
@@ -174,15 +176,16 @@ export function TrackingMap({
       bounds.push([d.lat, d.lng]);
     }
     if (c) {
+      const rot = typeof heading === "number" && Number.isFinite(heading) ? Math.round(heading) : 0;
       const currentIcon = L.divIcon({
         className: "",
-        html: `<div style="font-size:28px;line-height:28px;">🛵</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+        html: `<div style="font-size:30px;line-height:30px;transform:rotate(${rot}deg);display:inline-block;">🚗</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
       });
       const mk = L.marker([c.lat, c.lng], { icon: currentIcon, title: "Motoboy" });
       mk.addTo(map);
-      mk.bindPopup("Motoboy");
+      mk.bindPopup("Você está aqui");
       layersRef.current.current = { remove: () => mk.remove() };
       bounds.push([c.lat, c.lng]);
     }
@@ -206,15 +209,20 @@ export function TrackingMap({
     const mapApi = map as unknown as {
       fitBounds?: (b: [number, number][], o?: Record<string, unknown>) => void;
       setView?: (latlng: [number, number], zoom: number) => void;
+      panTo?: (latlng: [number, number], o?: Record<string, unknown>) => void;
     };
-    if (bounds.length > 1) {
+    if (follow && c) {
       try {
-        mapApi.fitBounds?.(bounds, { padding: [40, 40], maxZoom: 16 });
-      } catch {
-        // ignore
-      }
+        mapApi.panTo?.([c.lat, c.lng], { animate: true });
+      } catch {}
+    } else if (bounds.length > 1) {
+      try {
+        mapApi.fitBounds?.(bounds, { padding: [48, 48], maxZoom: 17 });
+      } catch {}
     } else if (bounds.length === 1) {
-      mapApi.setView?.(bounds[0], 15);
+      mapApi.setView?.(bounds[0], 16);
+    } else {
+      mapApi.setView?.([c?.lat ?? origin?.lat ?? -19.9, c?.lng ?? origin?.lng ?? -43.9], 16);
     }
   }
 
