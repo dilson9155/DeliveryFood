@@ -266,4 +266,4 @@ MIT — use como quiser.
 
 ---
 
-Desenvolvido com ☕ por **Delicias das Estações**.
+Desenvolvido com ☕ por **Delicias das Estações**.<!-- last-deploy: trigger Vercel rebuild -->
