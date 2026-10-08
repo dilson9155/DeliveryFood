@@ -47,7 +47,7 @@ export default async function OrderPage({
         include: {
           motoboy: { select: { name: true, phone: true, vehiclePlate: true, vehicleModel: true } },
           locations: {
-            orderBy: { recordedAt: "asc" },
+            orderBy: { recordedAt: "desc" },
             take: 100,
           },
         },
@@ -79,10 +79,14 @@ export default async function OrderPage({
         ? JSON.parse(JSON.stringify(order.paymentIntent))
         : null}
       delivery={order.delivery
-        ? JSON.parse(JSON.stringify({
-            ...order.delivery,
-            addressSnapshot: order.delivery.addressSnapshot,
-          }))
+        ? JSON.parse(
+            JSON.stringify({
+              ...order.delivery,
+              // Reverte para crescente: último item = ponto mais recente
+              locations: [...order.delivery.locations].reverse(),
+              addressSnapshot: order.delivery.addressSnapshot,
+            })
+          )
         : null}
       settings={{
         storeName: context.settings.storeName,

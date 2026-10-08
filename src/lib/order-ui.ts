@@ -47,6 +47,16 @@ export const STATUS_STEPS: OrderStatus[] = [
   "FINISHED",
 ];
 
+/** Etapas exibidas para pedidos com ENTREGA (substituem PICKED_UP/FINISHED). */
+export const STATUS_STEPS_DELIVERY: OrderStatus[] = [
+  "NEW",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+];
+
 export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
   PENDING: "Aguardando motoboy",
   ASSIGNED: "Motoboy atribuído",

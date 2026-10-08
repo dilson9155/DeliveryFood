@@ -37,7 +37,7 @@ export default async function MotoboyPage() {
           },
         },
         locations: {
-          orderBy: { recordedAt: "asc" },
+          orderBy: { recordedAt: "desc" },
           take: 50,
           select: { lat: true, lng: true },
         },
@@ -58,7 +58,9 @@ export default async function MotoboyPage() {
       lng?: number;
     };
     // Busca o último ponto do motoboy para exibir no mapa
-    const lastLoc = d.locations.length > 0 ? d.locations[d.locations.length - 1] : null;
+    // (ordenação desc + reverse => último item = mais recente, não congela com o tempo)
+    const locs = [...d.locations].reverse();
+    const lastLoc = locs.length > 0 ? locs[locs.length - 1] : null;
     return {
       id: d.id,
       orderId: d.order.id,
@@ -79,7 +81,7 @@ export default async function MotoboyPage() {
         lng: snap.lng ?? lastLoc?.lng ?? 0,
       },
       origin,
-      lastLocations: d.locations.map((l) => ({ lat: l.lat, lng: l.lng })),
+      lastLocations: locs.map((l) => ({ lat: l.lat, lng: l.lng })),
       itemsCount: d.order.items.reduce((s, i) => s + i.quantity, 0),
     };
   });

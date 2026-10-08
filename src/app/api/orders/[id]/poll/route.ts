@@ -28,11 +28,15 @@ export async function GET(
       delivery: {
         select: {
           id: true,
+          // Sem `mode` o cliente perde o mapa após o 1º poll (showMap usa delivery.mode)
+          mode: true,
           status: true,
           addressSnapshot: true,
           motoboy: { select: { name: true, phone: true, vehiclePlate: true, vehicleModel: true } },
+          // Busca os MAIS RECENTES e inverte: assim o último item é o ponto atual
+          // (com asc+take o mapa congela depois de 100 pontos)
           locations: {
-            orderBy: { recordedAt: "asc" },
+            orderBy: { recordedAt: "desc" },
             take: 100,
             select: { lat: true, lng: true, recordedAt: true },
           },
@@ -61,6 +65,11 @@ export async function GET(
     } catch {
       origin = null;
     }
+  }
+
+  // Reverte para ordem crescente (o polling/mapa espera o último item = ponto atual)
+  if (order.delivery?.locations) {
+    order.delivery.locations = [...order.delivery.locations].reverse();
   }
 
   return NextResponse.json({

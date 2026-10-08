@@ -28,6 +28,7 @@ import {
   STATUS_LABELS,
   STATUS_TONE,
   STATUS_STEPS,
+  STATUS_STEPS_DELIVERY,
   DELIVERY_STATUS_LABELS,
   DELIVERY_STATUS_STEPS,
   orderNumberLabel,
@@ -143,7 +144,8 @@ export function OrderTrack({
 
   const isDeliveryOrder = delivery?.mode === "DELIVERY";
   const cancelled = order.status === "CANCELLED";
-  const currentIndex = STATUS_STEPS.indexOf(order.status);
+  const steps = isDeliveryOrder ? STATUS_STEPS_DELIVERY : STATUS_STEPS;
+  const currentIndex = steps.indexOf(order.status as (typeof steps)[number]);
   const showMap = isDeliveryOrder && !!delivery;
 
   return (
@@ -197,7 +199,7 @@ export function OrderTrack({
           </div>
 
           <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {STATUS_STEPS.map((step, idx) => {
+            {steps.map((step, idx) => {
               const done = idx < currentIndex;
               const active = idx === currentIndex;
               return (
@@ -223,8 +225,8 @@ export function OrderTrack({
         </Card>
       )}
 
-      {/* Pagamento PIX (mostrar quando pendente + cliente é dono do pedido) */}
-      {order.paymentStatus === "PENDING" && (
+      {/* Pagamento PIX (mostrar quando pendente + PIX + cliente é dono do pedido) */}
+      {order.paymentMethod === "PIX" && order.paymentStatus === "PENDING" && (
         <div className="mb-6">
           <PixPayment
             orderId={order.id}
