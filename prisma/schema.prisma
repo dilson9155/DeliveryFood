@@ -219,6 +219,7 @@ model Product {
   category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   orderItems  OrderItem[]
   pricingItems PricingRunItem[]
+  pricingCost PricingCost?
 
   @@index([categoryId, active, order])
   @@index([active, featured])
@@ -631,4 +632,34 @@ model PricingRunItem {
   product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+}
+
+// Ficha de custos e parâmetros de precificação por produto (insumos).
+// Valores nulos/zero = ainda não informado; os campos derivados (custo real,
+// preço sugerido, mínimo, markup, margem, ponto de equilíbrio) são calculados
+// a partir destes campos — ver src/lib/pricing-calc.ts.
+model PricingCost {
+  id                String   @id @default(uuid())
+  productId         String   @unique
+  code              String?  @db.VarChar(40)   // Código
+  unit              String   @default("UN") @db.VarChar(10) // UN, KG, L, CX...
+  supplier          String?  @db.VarChar(120)  // Fornecedor
+  purchaseCost      Float?   // Custo de compra (R$/un)
+  freight           Float?   // Frete (R$/un)
+  otherCosts        Float?   // Outros custos: embalagem, taxas (R$/un)
+  additionalCostPct Float?   // Custo adicional %: perdas, tributos de compra
+  desiredMarginPct  Float?   // Margem desejada % (sobre o preço)
+  taxPct            Float?   // Impostos %
+  commissionPct     Float?   // Comissão %
+  cardFeePct        Float?   // Taxa cartão %
+  marketplaceFeePct Float?   // Taxa marketplace %
+  maxDiscountPct    Float?   // Desconto máximo % (limite de negociação)
+  fixedCost         Float?   // Custo fixo a recuperar (R$) — p/ ponto de equilíbrio
+  notes             String?  @db.VarChar(500)  // Observações
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }

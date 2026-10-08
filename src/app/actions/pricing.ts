@@ -27,7 +27,9 @@ const applySchema = z.object({
     .max(300, "Muitos produtos na mesma rodada."),
 });
 
-async function requirePricingEmployee(): Promise<SessionUser | PricingResult> {
+type AuthFailure = { ok: false; error: string };
+
+async function requirePricingEmployee(): Promise<SessionUser | AuthFailure> {
   const session = await auth();
   const s = session as unknown as {
     user?: {
@@ -54,7 +56,7 @@ async function requirePricingEmployee(): Promise<SessionUser | PricingResult> {
   return user;
 }
 
-function isUserResult(v: SessionUser | PricingResult): v is SessionUser {
+function isUserResult(v: SessionUser | AuthFailure): v is SessionUser {
   return !("ok" in v);
 }
 
@@ -149,6 +151,99 @@ export async function applyPricingAction(data: {
   revalidatePath("/admin/produtos");
   revalidatePath("/");
   return { ok: true, runId: run.id, appliedItems: changes.length };
+}
+
+/**
+ * Salva a ficha de custos/parâmetros de precificação de um produto (auto-save
+ * ao sair do campo). Os valores derivados são sempre recalculados no cliente.
+ */
+const nullableNum = (min: number, max: number) =>
+  z.number().min(min).max(max).nullable().optional();
+
+const costSchema = z.object({
+  productId: z.string().min(1),
+  code: z.string().max(40).nullable().optional(),
+  unit: z.string().min(1).max(10),
+  supplier: z.string().max(120).nullable().optional(),
+  purchaseCost: nullableNum(0, 1000000),
+  freight: nullableNum(0, 1000000),
+  otherCosts: nullableNum(0, 1000000),
+  additionalCostPct: nullableNum(0, 1000),
+  desiredMarginPct: nullableNum(0, 1000),
+  taxPct: nullableNum(0, 100),
+  commissionPct: nullableNum(0, 100),
+  cardFeePct: nullableNum(0, 100),
+  marketplaceFeePct: nullableNum(0, 100),
+  maxDiscountPct: nullableNum(0, 100),
+  fixedCost: nullableNum(0, 1000000),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+export type PricingCostResult =
+  | { ok: true; updatedAt: string }
+  | { ok: false; error: string };
+
+export async function savePricingCostAction(data: {
+  productId: string;
+  code?: string | null;
+  unit: string;
+  supplier?: string | null;
+  purchaseCost?: number | null;
+  freight?: number | null;
+  otherCosts?: number | null;
+  additionalCostPct?: number | null;
+  desiredMarginPct?: number | null;
+  taxPct?: number | null;
+  commissionPct?: number | null;
+  cardFeePct?: number | null;
+  marketplaceFeePct?: number | null;
+  maxDiscountPct?: number | null;
+  fixedCost?: number | null;
+  notes?: string | null;
+}): Promise<PricingCostResult> {
+  const user = await requirePricingEmployee();
+  if (!isUserResult(user)) return user;
+
+  const parsed = costSchema.safeParse(data);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const d = parsed.data;
+  const product = await prisma.product.findUnique({
+    where: { id: d.productId },
+    select: { id: true },
+  });
+  if (!product) {
+    return { ok: false, error: "Produto não encontrado." };
+  }
+
+  const fields = {
+    code: d.code?.trim() || null,
+    unit: (d.unit || "UN").toUpperCase(),
+    supplier: d.supplier?.trim() || null,
+    purchaseCost: d.purchaseCost ?? null,
+    freight: d.freight ?? null,
+    otherCosts: d.otherCosts ?? null,
+    additionalCostPct: d.additionalCostPct ?? null,
+    desiredMarginPct: d.desiredMarginPct ?? null,
+    taxPct: d.taxPct ?? null,
+    commissionPct: d.commissionPct ?? null,
+    cardFeePct: d.cardFeePct ?? null,
+    marketplaceFeePct: d.marketplaceFeePct ?? null,
+    maxDiscountPct: d.maxDiscountPct ?? null,
+    fixedCost: d.fixedCost ?? null,
+    notes: d.notes?.trim() || null,
+  };
+
+  const saved = await prisma.pricingCost.upsert({
+    where: { productId: d.productId },
+    create: { productId: d.productId, ...fields },
+    update: fields,
+    select: { updatedAt: true },
+  });
+
+  return { ok: true, updatedAt: saved.updatedAt.toISOString() };
 }
 
 /**

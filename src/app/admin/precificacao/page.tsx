@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Precificação" };
 
 export default async function PricingPage() {
-  const [products, runs] = await Promise.all([
+  const [products, runs, costs] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
       orderBy: [{ category: { order: "asc" } }, { order: "asc" }, { name: "asc" }],
@@ -20,12 +20,16 @@ export default async function PricingPage() {
         items: true,
       },
     }),
+    prisma.pricingCost.findMany({
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
 
   return (
     <PricingPanel
       products={JSON.parse(JSON.stringify(products))}
       runs={JSON.parse(JSON.stringify(runs))}
+      costs={JSON.parse(JSON.stringify(costs))}
     />
   );
 }
