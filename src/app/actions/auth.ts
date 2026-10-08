@@ -4,7 +4,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { signIn, auth, signOut } from "@/lib/auth";
+import { signIn, signOut, findUserByIdentifier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import {
@@ -47,10 +47,14 @@ export async function loginAction(
     throw error;
   }
 
-  const session = await auth();
+  // auth() nesta mesma action ainda não enxerga o cookie que o acabou de
+  // criar (ele é gravado na resposta), então buscamos o usuário no banco
+  // para decidir o destino do redirect.
+  const user = await findUserByIdentifier(parsed.data.identifier);
+
   let target = "/";
-  if (session?.user?.userType === "EMPLOYEE") {
-    target = session.user.role === "MOTOBOY" ? "/entregador" : "/admin/dashboard";
+  if (user?.userType === "EMPLOYEE") {
+    target = user.role === "MOTOBOY" ? "/entregador" : "/admin/dashboard";
   }
   redirect(target);
 }

@@ -88,7 +88,11 @@ export type AsaasResult<T> =
 
 function getConfig() {
   const env = (process.env.ASAAS_ENV ?? "sandbox") as AsaasEnv;
-  const apiKey = process.env.ASAAS_API_KEY;
+  // No Vercel a variável `ASAAS_API_KEY` chega vazia ao runtime (entrada
+  // corrompida na conta), então o valor é gravado em `ASAAS_ACCESS_TOKEN`.
+  // Localmente o `.env` usa `ASAAS_API_KEY` (fallback abaixo).
+  const apiKey =
+    process.env.ASAAS_ACCESS_TOKEN?.trim() || process.env.ASAAS_API_KEY?.trim();
   if (!apiKey) return null;
   const baseUrl = env === "production" ? PRODUCTION_API : SANDBOX_API;
   return { env, apiKey, baseUrl };

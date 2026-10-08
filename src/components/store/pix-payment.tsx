@@ -60,11 +60,18 @@ export function PixPayment({
         setStatus("expired");
         return;
       }
-      const minutes = Math.floor(ms / 60_000);
-      const seconds = Math.floor((ms % 60_000) / 1000);
-      setCountdown(
-        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-      );
+      const totalSec = Math.floor(ms / 1000);
+      const days = Math.floor(totalSec / 86400);
+      const hours = Math.floor((totalSec % 86400) / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+      if (days > 0) setCountdown(`${days}d ${hours}h`);
+      else if (hours > 0)
+        setCountdown(`${hours}h ${String(minutes).padStart(2, "0")}min`);
+      else
+        setCountdown(
+          `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+        );
     };
     update();
     const t = setInterval(update, 1000);
@@ -102,13 +109,15 @@ export function PixPayment({
         setStatus("error");
         return;
       }
-      // Recarrega para pegar o QR
-      const r2 = await refreshPixStatusAction(orderId);
-      if (!r2.ok) {
-        show("error", r2.error);
-        return;
-      }
-      // Recarrega a página para mostrar o QR (server-side precisa fornecer)
+      // Exibe o QR imediatamente. router.refresh() só re-renderiza os
+      // componentes do servidor e NÃO reinicia o estado deste componente,
+      // então sem estes set a tela continuaria em "idle".
+      setErrorInfo(null);
+      setQrBase64(res.qrBase64);
+      setQrText(res.qrText);
+      setExpiresAt(res.expiresAt ? new Date(res.expiresAt) : null);
+      setCopied(false);
+      setStatus("pending");
       router.refresh();
     });
   }

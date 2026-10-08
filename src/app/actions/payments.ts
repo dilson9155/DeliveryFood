@@ -18,10 +18,31 @@ type ActionResult<T> =
   | ({ ok: true } & T)
   | { ok: false; error: string };
 
+type PixCreated = {
+  paymentId: string;
+  intentId: string;
+  qrBase64: string | null;
+  qrText: string | null;
+  expiresAt: string | null;
+};
+
+/**
+ * A API PIX do Asaas pode devolver uma validade distante (ex.: 1 ano).
+ * Limitamos a 1h, que é o tempo de confirmação do pedido — e é o valor
+ * usado como fallback quando a API não informa a expiração.
+ */
+function resolvePixExpiry(asaasExpiresAt: string | null | undefined): Date {
+  const max = new Date(Date.now() + 60 * 60 * 1000);
+  if (!asaasExpiresAt) return max;
+  const parsed = new Date(asaasExpiresAt);
+  if (Number.isNaN(parsed.getTime())) return max;
+  return parsed.getTime() > max.getTime() ? max : parsed;
+}
+
 /** Cria um PIX no Asaas para o pedido */
 export async function createPixForOrderAction(
   orderId: string
-): Promise<ActionResult<{ paymentId: string; intentId: string }>> {
+): Promise<ActionResult<PixCreated>> {
   const session = await auth();
   if (!session?.user || session.user.userType !== "CUSTOMER") {
     return { ok: false, error: "Faça login para pagar." };
@@ -78,6 +99,9 @@ export async function createPixForOrderAction(
         ok: true,
         paymentId: existing.providerPaymentId,
         intentId: existing.id,
+        qrBase64: existing.qrCodeBase64,
+        qrText: existing.qrCodeText,
+        expiresAt: existing.pixExpiresAt.toISOString(),
       };
     }
   }
@@ -120,7 +144,7 @@ export async function createPixForOrderAction(
           amount: roundMoney(order.total),
           qrCodeBase64: pix?.encodedImage ?? null,
           qrCodeText: pix?.payload ?? null,
-          pixExpiresAt: pix?.expiresAt ? new Date(pix.expiresAt) : new Date(Date.now() + 60 * 60 * 1000),
+          pixExpiresAt: resolvePixExpiry(pix?.expiresAt),
           invoiceUrl: result.data.invoiceUrl,
           rawLastResponse: result.data as unknown as object,
         },
@@ -135,7 +159,7 @@ export async function createPixForOrderAction(
           amount: roundMoney(order.total),
           qrCodeBase64: pix?.encodedImage ?? null,
           qrCodeText: pix?.payload ?? null,
-          pixExpiresAt: pix?.expiresAt ? new Date(pix.expiresAt) : new Date(Date.now() + 60 * 60 * 1000),
+          pixExpiresAt: resolvePixExpiry(pix?.expiresAt),
           invoiceUrl: result.data.invoiceUrl,
           rawLastResponse: result.data as unknown as object,
         },
@@ -153,6 +177,9 @@ export async function createPixForOrderAction(
     ok: true,
     paymentId: result.data.id,
     intentId: intent.id,
+    qrBase64: intent.qrCodeBase64,
+    qrText: intent.qrCodeText,
+    expiresAt: intent.pixExpiresAt ? intent.pixExpiresAt.toISOString() : null,
   };
 }
 

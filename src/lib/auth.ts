@@ -4,6 +4,27 @@ import bcrypt from "bcryptjs";
 import type { EmployeeRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Resolve um identificador (e-mail, telefone ou login) para um usuário ativo.
+ * Usado pelo authorize e pelo loginAction (que não enxerga o cookie recém-criado).
+ */
+export async function findUserByIdentifier(identifier: string) {
+  const trimmed = identifier.trim();
+  const isEmail = trimmed.includes("@");
+
+  return prisma.user.findFirst({
+    where: isEmail
+      ? { email: trimmed.toLowerCase(), active: true }
+      : {
+          OR: [
+            { phone: trimmed.replace(/\D/g, "") },
+            { login: trimmed.toLowerCase() },
+          ],
+          active: true,
+        },
+  });
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
@@ -16,25 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials?.password as string;
         if (!identifier || !password) return null;
 
-        const trimmed = identifier.trim();
-        const isEmail = trimmed.includes("@");
-
-        const identifierNormalized = isEmail
-          ? trimmed.toLowerCase()
-          : trimmed.replace(/\D/g, "");
-
-        const where = isEmail
-          ? { email: identifierNormalized }
-          : {
-              OR: [
-                { phone: identifierNormalized },
-                { login: trimmed.toLowerCase() },
-              ],
-            };
-
-        const user = await prisma.user.findFirst({
-          where: { ...where, active: true },
-        });
+        const user = await findUserByIdentifier(identifier);
 
         if (!user) return null;
 
