@@ -143,6 +143,10 @@ enum AuditAction {
   SETTINGS_CHANGE
   STATUS_CHANGE
   PERMISSION_CHANGE
+  CAMPAIGN_CREATED
+  CAMPAIGN_SENT
+  CAMPAIGN_CANCELLED
+  CAMPAIGN_DELETED
 }
 
 model User {
@@ -179,7 +183,9 @@ model User {
   cashMovements   CashMovement[]
   orderHistory    OrderHistory[]
   paymentsConfirmed Payment[]     @relation("PaymentConfirmedBy")
-  pricingRuns       PricingRun[]  @relation("PricingRuns")
+  pricingRuns       PricingRun[]        @relation("PricingRuns")
+  campaignsCreated  Campaign[]          @relation("CampaignsCreated")
+  campaignRecipients CampaignRecipient[] @relation("CampaignRecipients")
 
   @@index([userType])
   @@index([phone])
@@ -662,4 +668,63 @@ model PricingCost {
   product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+}
+
+// Status de campanhas de disparo de mensagens
+
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum RecipientStatus {
+  PENDING
+  SENT
+  ERROR
+  CANCELLED
+}
+// Status de campanhas de disparo de mensagens
+
+model Campaign {
+  id          String         @id @default(uuid())
+  title       String         @db.VarChar(120)
+  message     String         @db.Text
+  status      CampaignStatus @default(DRAFT)
+  total       Int            @default(0)
+  sentCount   Int            @default(0)
+  errorCount  Int            @default(0)
+  cancelledAt DateTime?
+  finishedAt  DateTime?
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  createdBy  User?              @relation("CampaignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  recipients CampaignRecipient[]
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+model CampaignRecipient {
+  id         String         @id @default(uuid())
+  campaignId String
+  customerId String?
+  name       String         @db.VarChar(120)
+  phone      String         @db.VarChar(20)
+  message    String         @db.Text
+  status     RecipientStatus @default(PENDING)
+  error      String?        @db.VarChar(255)
+  sentAt     DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  campaign   Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer   User?          @relation("CampaignRecipients", fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, customerId])
+  @@index([campaignId, status])
+  @@index([status])
 }

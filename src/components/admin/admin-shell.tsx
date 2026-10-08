@@ -25,6 +25,7 @@ import {
   ArrowLeftRight,
   BookOpen,
   Tags,
+  MessagesSquare,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -63,6 +64,7 @@ export function AdminShell({
     { href: "/admin/precificacao", label: "Precificação", icon: <Tags className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/categorias", label: "Categorias", icon: <FolderOpen className="h-5 w-5" />, permission: "categories.manage" },
     { href: "/admin/clientes", label: "Clientes", icon: <Users className="h-5 w-5" />, permission: "customers.view" },
+    { href: "/admin/disparo-mensagens", label: "Disparo de Mensagens", icon: <MessagesSquare className="h-5 w-5" />, permission: "messages.manage" },
     { href: "/admin/colaboradores", label: "Colaboradores", icon: <UserCog className="h-5 w-5" />, permission: "employees.manage" },
     { href: "/admin/caixa", label: "Caixa", icon: <Wallet className="h-5 w-5" />, permission: "cash.movements" },
     { href: "/admin/financeiro/pagar", label: "Contas a pagar", icon: <CreditCard className="h-5 w-5" />, permission: "finance.view" },
