@@ -121,6 +121,7 @@ export async function setDefaultAddressAction(addressId: string): Promise<{ ok: 
 
 // === Cotações ===
 const quoteSchema = z.object({
+  addressId: z.string().optional(),
   street: z.string().min(2),
   number: z.string().min(1),
   complement: z.string().optional().nullable(),
@@ -153,7 +154,29 @@ export async function quoteDeliveryAction(
     return { ok: false, error: parsed.error.issues[0].message };
   }
 
-  const { quoteDelivery } = await import("@/lib/delivery");
+  const { quoteDelivery, quoteDeliveryFromCoords } = await import("@/lib/delivery");
+
+  // Endereço salvo: quota usando as coordenadas do cadastro para o valor do
+  // checkout ser exatamente o que será cobrado na criação do pedido.
+  if (parsed.data.addressId) {
+    const addr = await prisma.address.findFirst({
+      where: { id: parsed.data.addressId, userId: session.user.id },
+      select: { lat: true, lng: true },
+    });
+    if (addr && Number.isFinite(addr.lat) && Number.isFinite(addr.lng)) {
+      const result = await quoteDeliveryFromCoords(addr.lat, addr.lng);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        distanceKm: result.distanceKm,
+        fee: result.fee,
+        etaMinutes: result.etaMinutes,
+        lat: result.dest.lat,
+        lng: result.dest.lng,
+      };
+    }
+  }
+
   const result = await quoteDelivery(parsed.data);
   if (!result.ok) return result;
   return {

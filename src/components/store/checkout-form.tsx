@@ -143,6 +143,7 @@ export function CheckoutForm({
       return;
     }
     setIsQuoting(true);
+    const addressId = effectiveAddress && "id" in effectiveAddress ? effectiveAddress.id : undefined;
     const payload = {
       street: effectiveAddress.street,
       number: effectiveAddress.number,
@@ -151,6 +152,7 @@ export function CheckoutForm({
       city: effectiveAddress.city,
       state: effectiveAddress.state,
       zipCode: effectiveAddress.zipCode,
+      ...(addressId ? { addressId } : {}),
     };
     let cancelled = false;
     quoteDeliveryAction(payload)
@@ -166,7 +168,7 @@ export function CheckoutForm({
     return () => {
       cancelled = true;
     };
-  }, [mode, effectiveAddress?.street, effectiveAddress?.number]); // eslint-disable-line
+  }, [mode, effectiveAddress]); // eslint-disable-line
 
   const total = useMemo(() => {
     if (mode === "DELIVERY" && quote?.ok) return subtotal + quote.fee;
