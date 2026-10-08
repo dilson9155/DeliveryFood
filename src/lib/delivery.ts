@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import type { DeliverySettings } from "@prisma/client";
-import { geocodeAddress, calculateDeliveryFee, type AddressInput } from "@/lib/geo";
+import {
+  geocodeAddress,
+  calculateDeliveryFee,
+  estimateMinutes,
+  distanceKm as haversineKm,
+  getRoadRoute,
+  type AddressInput,
+  type LatLng,
+} from "@/lib/geo";
 
 /** Settings padrão caso ainda não exista linha na tabela */
 export const DEFAULT_DELIVERY_SETTINGS: Omit<DeliverySettings, "updatedAt"> = {
@@ -44,11 +52,66 @@ export async function getStoreOrigin(): Promise<{ lat: number; lng: number } | n
   return geo ? { lat: geo.lat, lng: geo.lng } : null;
 }
 
-/** Cotação de entrega: geocoding + cálculo de distância + taxa */
+export type DeliveryQuoteOk = {
+  ok: true;
+  distanceKm: number;
+  fee: number;
+  etaMinutes: number;
+  dest: { lat: number; lng: number; displayName: string };
+  route: LatLng[] | null;       // geometria da rota por ruas (mapa)
+  routeDurationMin: number | null;
+  settings: DeliverySettings;
+};
+
+export type DeliveryQuoteErr = { ok: false; error: string; distanceKm?: number };
+
+export type DeliveryQuote = DeliveryQuoteOk | DeliveryQuoteErr;
+
+/**
+ * Monta a cotação para um destino já geocodificado.
+ * Distância usa a rota real por ruas (OSRM); se o serviço não responder,
+ * cai no Haversine (linha reta).
+ */
+async function buildQuote(
+  settings: DeliverySettings,
+  origin: LatLng,
+  dest: { lat: number; lng: number; displayName: string }
+): Promise<DeliveryQuote> {
+  const road = await getRoadRoute(origin, dest);
+  const distanceKm = road ? road.distanceKm : haversineKm(origin, dest);
+  if (distanceKm > settings.maxDistanceKm) {
+    return {
+      ok: false as const,
+      error: `Endereço fora da área de entrega (${distanceKm.toFixed(1)} km, máximo ${settings.maxDistanceKm} km).`,
+      distanceKm,
+    };
+  }
+  const fee = calculateDeliveryFee({
+    distanceKm,
+    baseFee: settings.baseFee,
+    feePerKm: settings.feePerKm,
+    minFee: settings.minFee,
+    maxFee: settings.maxFee,
+  });
+  // ETA pela velocidade média configurada, agora sobre a distância real da rota
+  const etaMinutes = estimateMinutes(distanceKm, settings.avgSpeedKmh);
+  return {
+    ok: true as const,
+    distanceKm,
+    fee,
+    etaMinutes,
+    dest,
+    route: road?.geometry ?? null,
+    routeDurationMin: road?.durationMin ?? null,
+    settings,
+  };
+}
+
+/** Cotação de entrega: geocoding + rota por ruas + taxa */
 export async function quoteDelivery(
   customerAddress: AddressInput,
-  originOverride?: { lat: number; lng: number }
-) {
+  originOverride?: LatLng
+): Promise<DeliveryQuote> {
   const [settings, originFromDb] = await Promise.all([
     getDeliverySettings(),
     originOverride ? null : getStoreOrigin(),
@@ -68,30 +131,36 @@ export async function quoteDelivery(
       error: "Endereço não encontrado. Confira os dados e tente novamente.",
     };
   }
-  const { distanceKm } = await import("@/lib/geo").then((m) => ({
-    distanceKm: m.distanceKm(originCoords, { lat: dest.lat, lng: dest.lng }),
-  }));
-  if (distanceKm > settings.maxDistanceKm) {
-    return {
-      ok: false as const,
-      error: `Endereço fora da área de entrega (${distanceKm.toFixed(1)} km, máximo ${settings.maxDistanceKm} km).`,
-      distanceKm,
-    };
-  }
-  const fee = calculateDeliveryFee({
-    distanceKm,
-    baseFee: settings.baseFee,
-    feePerKm: settings.feePerKm,
-    minFee: settings.minFee,
-    maxFee: settings.maxFee,
+  return buildQuote(settings, originCoords, {
+    lat: dest.lat,
+    lng: dest.lng,
+    displayName: dest.displayName,
   });
-  const etaMinutes = Math.ceil((distanceKm / settings.avgSpeedKmh) * 60);
-  return {
-    ok: true as const,
-    distanceKm,
-    fee,
-    etaMinutes,
-    dest: { lat: dest.lat, lng: dest.lng, displayName: dest.displayName },
-    settings,
-  };
+}
+
+/**
+ * Cota a entrega direto de coordenadas já conhecidas (sem re-geocoding).
+ * Usada na criação do pedido para recalcular a taxa no servidor.
+ */
+export async function quoteDeliveryFromCoords(
+  destLat: number,
+  destLng: number,
+  originOverride?: LatLng
+): Promise<DeliveryQuote> {
+  const [settings, originFromDb] = await Promise.all([
+    getDeliverySettings(),
+    originOverride ? null : getStoreOrigin(),
+  ]);
+  const originCoords = originOverride ?? originFromDb;
+  if (!originCoords) {
+    return { ok: false as const, error: "Não foi possível localizar a loja." };
+  }
+  if (!settings.deliveryEnabled) {
+    return { ok: false as const, error: "Entrega desabilitada no momento." };
+  }
+  return buildQuote(settings, originCoords, {
+    lat: destLat,
+    lng: destLng,
+    displayName: "",
+  });
 }

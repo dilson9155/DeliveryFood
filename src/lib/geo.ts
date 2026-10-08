@@ -154,3 +154,70 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
     return null;
   }
 }
+
+// === Rota real por ruas (OSRM - OpenStreetMap) ===
+// Calcula a distância/tempo seguindo as ruas (via driving), em vez da
+// linha reta do Haversine. Servidor público/demo sem chave; há cache
+// in-memory e fallback para Haversine caso não responda.
+export type OsrmRoute = {
+  distanceKm: number;
+  durationMin: number;
+  geometry: LatLng[];
+};
+
+const osrmCache = new Map<string, OsrmRoute>();
+
+/**
+ * Consulta o OSRM por uma rota dirigível entre dois pontos.
+ * Retorna `null` quando o serviço não responde (fallback Haversine).
+ */
+export async function getRoadRoute(
+  a: LatLng,
+  b: LatLng,
+  timeoutMs = 5000
+): Promise<OsrmRoute | null> {
+  const key = `${a.lat.toFixed(5)},${a.lng.toFixed(5)}|${b.lat.toFixed(5)},${b.lng.toFixed(5)}`;
+  const cached = osrmCache.get(key);
+  if (cached) return cached;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    // OSRM usa a ordem "lng,lat" e espera as coordenadas após a barra
+    const url = new URL("https://router.project-osrm.org/route/v1/driving");
+    url.pathname += `/${a.lng},${a.lat};${b.lng},${b.lat}`;
+    url.searchParams.set("overview", "full");
+    url.searchParams.set("geometries", "geojson");
+    url.searchParams.set("steps", "false");
+    url.searchParams.set("alternatives", "false");
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      code?: string;
+      routes?: Array<{
+        distance?: number;
+        duration?: number;
+        geometry?: { coordinates?: Array<[number, number]> };
+      }>;
+    };
+    const route = data.routes?.[0];
+    if (!route || typeof route.distance !== "number" || typeof route.duration !== "number") {
+      return null;
+    }
+    const result: OsrmRoute = {
+      distanceKm: route.distance / 1000,
+      durationMin: route.duration / 60,
+      geometry: (route.geometry?.coordinates ?? []).map(([lng, lat]) => ({ lat, lng })),
+    };
+    osrmCache.set(key, result);
+    return result;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

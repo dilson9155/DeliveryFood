@@ -8,6 +8,7 @@ type TrackingMapProps = {
   destination?: LatLng | null;  // cliente
   current?: LatLng | null;      // posição atual do motoboy
   routePoints?: LatLng[];       // pontos coletados (histórico curto)
+  roadRoute?: LatLng[] | null;  // geometria da rota por ruas (OSRM)
   height?: number | string;
   zoom?: number;
 };
@@ -46,6 +47,7 @@ export function TrackingMap({
   destination,
   current,
   routePoints = [],
+  roadRoute = null,
   height = 360,
   zoom = 14,
 }: TrackingMapProps) {
@@ -56,6 +58,7 @@ export function TrackingMap({
     destination?: { remove: () => void };
     current?: { remove: () => void };
     polyline?: { remove: () => void };
+    road?: { remove: () => void };
   }>({});
 
   useEffect(() => {
@@ -132,11 +135,12 @@ export function TrackingMap({
     const map = mapRef.current as LMap | null;
     const L = (globalThis as { L?: LeafletNS }).L;
     if (!map || !L) return;
-    const { origin: o, destination: d, current: c, routePoints: rp } = {
+    const { origin: o, destination: d, current: c, routePoints: rp, roadRoute: rd } = {
       origin: originRef.current,
       destination: destinationRef.current,
       current: currentRef.current,
       routePoints: routePointsRef.current,
+      roadRoute: roadRouteRef.current,
     };
 
     // Limpa markers antigos
@@ -182,6 +186,14 @@ export function TrackingMap({
       layersRef.current.current = { remove: () => mk.remove() };
       bounds.push([c.lat, c.lng]);
     }
+    if (rd && rd.length > 1) {
+      const roadLine = L.polyline(
+        rd.map((p) => [p.lat, p.lng] as [number, number]),
+        { color: "#64748b", weight: 5, opacity: 0.55, dashArray: "1 10", lineCap: "round" }
+      );
+      roadLine.addTo(map);
+      layersRef.current.road = { remove: () => roadLine.remove() };
+    }
     if (rp.length > 1) {
       const line = L.polyline(
         rp.map((p) => [p.lat, p.lng] as [number, number]),
@@ -211,15 +223,17 @@ export function TrackingMap({
   const destinationRef = useRef(destination);
   const currentRef = useRef(current);
   const routePointsRef = useRef(routePoints);
+  const roadRouteRef = useRef(roadRoute ?? null);
   useEffect(() => { originRef.current = origin; }, [origin]);
   useEffect(() => { destinationRef.current = destination; }, [destination]);
   useEffect(() => { currentRef.current = current; }, [current]);
   useEffect(() => { routePointsRef.current = routePoints; }, [routePoints]);
+  useEffect(() => { roadRouteRef.current = roadRoute ?? null; }, [roadRoute]);
 
   useEffect(() => {
     if (mapRef.current) redraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination, current, routePoints]);
+  }, [origin, destination, current, routePoints, roadRoute]);
 
   return (
     <div

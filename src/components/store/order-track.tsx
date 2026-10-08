@@ -79,6 +79,7 @@ type DeliveryData = {
     state: string;
     lat?: number;
     lng?: number;
+    route?: { lat: number; lng: number }[] | null;
   };
   motoboy: { name: string; phone: string | null; vehiclePlate: string | null; vehicleModel: string | null } | null;
   locations: { lat: number; lng: number; recordedAt: string }[];
@@ -287,6 +288,7 @@ export function OrderTrack({
                 : null
             }
             routePoints={delivery.locations.map((l) => ({ lat: l.lat, lng: l.lng }))}
+            roadRoute={delivery.addressSnapshot.route ?? null}
             height={360}
           />
           <div className="border-t border-border bg-background p-4">

@@ -44,6 +44,7 @@ export type MotoboyDelivery = {
     lat: number;
     lng: number;
   };
+  route?: LatLng[] | null;   // rota por ruas (OSRM) para desenhar no mapa
   origin?: LatLng | null;
   lastLocations?: LatLng[];
   itemsCount: number;
@@ -384,6 +385,7 @@ export function MotoboyPanel({
               }}
               current={myPos}
               routePoints={selected.lastLocations ?? []}
+              roadRoute={selected.route ?? null}
               height={420}
             />
 

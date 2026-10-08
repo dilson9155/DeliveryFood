@@ -9,6 +9,12 @@ import { createOrderSchema } from "@/lib/validations";
 import { roundMoney } from "@/lib/format";
 import { getStoreContext } from "@/lib/store-status";
 import {
+  quoteDelivery,
+  quoteDeliveryFromCoords,
+  type DeliveryQuote,
+  type DeliveryQuoteOk,
+} from "@/lib/delivery";
+import {
   sendOrderEventWhatsApp,
   sendOrderReceivedWhatsApp,
 } from "@/lib/notify";
@@ -123,10 +129,55 @@ export async function createOrderAction(
   // Cria pedido + itens + histórico + pagamento em uma única transação
   // para garantir que ou tudo persiste, ou nada persiste.
   const deliveryInput = parsed.data.delivery;
+  const deliveryMode = deliveryInput?.mode ?? DeliveryMode.PICKUP;
+
+  // === Cotação autoritativa da entrega (no servidor) ===
+  // A taxa/distância NÃO é confiada no que o cliente envia: recalculamos
+  // aqui pela rota real por ruas (OSRM) e gravamos em Order.deliveryFee e
+  // Delivery.fee/distanceKm.
+  let deliveryQuote: DeliveryQuoteOk | null = null;
+  if (deliveryMode === DeliveryMode.DELIVERY) {
+    let destCoords: { lat: number; lng: number } | null = null;
+
+    // Endereço salvo: usa as coordenadas do cadastro (fonte confiável)
+    if (deliveryInput?.addressId) {
+      const addr = await prisma.address.findFirst({
+        where: { id: deliveryInput.addressId, userId: customer.id },
+      });
+      if (addr && Number.isFinite(addr.lat) && Number.isFinite(addr.lng)) {
+        destCoords = { lat: addr.lat, lng: addr.lng };
+      }
+    }
+    // Endereço recém-salvo sem coords: usa as do geocoding do checkout
+    const clientLat = Number(deliveryInput?.lat);
+    const clientLng = Number(deliveryInput?.lng);
+    if (
+      !destCoords &&
+      Number.isFinite(clientLat) &&
+      Number.isFinite(clientLng) &&
+      clientLat !== 0 &&
+      clientLng !== 0
+    ) {
+      destCoords = { lat: clientLat, lng: clientLng };
+    }
+
+    let quote: DeliveryQuote;
+    if (destCoords) {
+      quote = await quoteDeliveryFromCoords(destCoords.lat, destCoords.lng);
+    } else if (deliveryInput?.address) {
+      quote = await quoteDelivery(deliveryInput.address);
+    } else {
+      return { ok: false, error: "Informe o endereço de entrega." };
+    }
+    if (!quote.ok) {
+      return { ok: false, error: quote.error };
+    }
+    deliveryQuote = quote;
+  }
+
   const order = await prisma.$transaction(async (tx) => {
-    const deliveryMode = deliveryInput?.mode ?? DeliveryMode.PICKUP;
     const deliveryFee = deliveryMode === DeliveryMode.DELIVERY
-      ? roundMoney(deliveryInput?.fee ?? 0)
+      ? roundMoney(deliveryQuote?.fee ?? deliveryInput?.fee ?? 0)
       : 0;
     const totalWithDelivery = roundMoney(total + deliveryFee);
 
@@ -211,9 +262,17 @@ export async function createOrderAction(
         lat = deliveryInput.lat ?? null;
         lng = deliveryInput.lng ?? null;
       }
-      distanceKm = deliveryInput?.distanceKm ?? null;
+      distanceKm = deliveryQuote?.distanceKm ?? deliveryInput?.distanceKm ?? null;
 
       if (addressSnapshot) {
+        // Coordenadas e rota autoritativas calculadas no servidor
+        if (deliveryQuote) {
+          addressSnapshot.lat = deliveryQuote.dest.lat;
+          addressSnapshot.lng = deliveryQuote.dest.lng;
+          if (deliveryQuote.route && deliveryQuote.route.length > 0) {
+            addressSnapshot.route = deliveryQuote.route;
+          }
+        }
         await tx.delivery.create({
           data: {
             orderId: created.id,
@@ -221,6 +280,7 @@ export async function createOrderAction(
             status: DeliveryStatus.PENDING,
             addressSnapshot: addressSnapshot as object,
             distanceKm,
+            fee: roundMoney(deliveryQuote?.fee ?? deliveryInput?.fee ?? 0),
           },
         });
       }
@@ -256,7 +316,7 @@ export async function createOrderAction(
     action: "CREATE",
     resource: "order",
     entityId: order.id,
-    details: `Pedido #${order.number} criado — total ${total + (deliveryInput?.fee ?? 0)}`,
+    details: `Pedido #${order.number} criado — total ${order.total}`,
   });
 
   // Notificação WhatsApp (best-effort)
@@ -272,7 +332,7 @@ export async function createOrderAction(
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin/delivery");
 
-  return { ok: true, orderId: order.id, number: order.number, total: total + (deliveryInput?.fee ?? 0) };
+  return { ok: true, orderId: order.id, number: order.number, total: order.total };
 }
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {

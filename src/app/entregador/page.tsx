@@ -56,6 +56,7 @@ export default async function MotoboyPage() {
       state: string;
       lat?: number;
       lng?: number;
+      route?: { lat: number; lng: number }[];
     };
     // Busca o último ponto do motoboy para exibir no mapa
     // (ordenação desc + reverse => último item = mais recente, não congela com o tempo)
@@ -81,6 +82,7 @@ export default async function MotoboyPage() {
         lng: snap.lng ?? lastLoc?.lng ?? 0,
       },
       origin,
+      route: snap.route ?? null,
       lastLocations: locs.map((l) => ({ lat: l.lat, lng: l.lng })),
       itemsCount: d.order.items.reduce((s, i) => s + i.quantity, 0),
     };
