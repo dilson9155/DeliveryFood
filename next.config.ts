@@ -1,12 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Habilita build standalone (imagem Docker menor, sem node_modules no output)
-  output: "standalone",
-  // Trust Hostinger proxy / domínio
+  // Vercel deploy (NÃO usar output: 'standalone' em Vercel — gera artefatos desnecessários)
   poweredByHeader: false,
   experimental: {
-    // Necessário para o proxy.ts usar Headers do runtime
     serverActions: {
       bodySizeLimit: "2mb",
     },
