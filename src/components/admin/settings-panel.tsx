@@ -409,18 +409,17 @@ export function SettingsPanel({
             />
           </div>
 
-          <a
-            href="/recibo/novo-recibo-demo"
-            className="inline-block text-xs text-brand-600 hover:underline"
-            onClick={(e) => {
-              e.preventDefault();
+          <button
+            type="button"
+            className="inline-block cursor-pointer border-0 bg-transparent p-0 text-xs text-brand-600 hover:underline"
+            onClick={() => {
               alert(
                 "Para testar a impressão:\n\n1. Crie um pedido no sistema\n2. Abra o recibo\n3. Selecione o modelo\n4. Clique em Imprimir ou PDF"
               );
             }}
           >
             Como testar?
-          </a>
+          </button>
         </CardContent>
         <CardContent className="border-t border-border">
           <Button onClick={saveStore} size="lg">

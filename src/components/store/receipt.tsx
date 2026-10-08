@@ -85,7 +85,7 @@ export function Receipt({
   function padLine(left: string, right: string, width: number): string {
     const total = width;
     const maxLeft = Math.max(0, total - right.length - 1);
-    let l = left.length > maxLeft ? left.slice(0, maxLeft) : left;
+    const l = left.length > maxLeft ? left.slice(0, maxLeft) : left;
     const spaces = total - l.length - right.length;
     return l + " ".repeat(Math.max(1, spaces)) + right;
   }
