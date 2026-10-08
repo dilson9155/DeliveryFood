@@ -212,12 +212,29 @@ export async function createPixPayment(
   if (!charge.ok) return charge;
 
   // 3. Gera QR Code PIX
-  const pix = await request<{
-    encodedImage: string;
-    payload: string;
-    expirationDate: string;
-  }>(`/payments/${charge.data.id}/pixQrCode`, { method: "GET" });
+  const pix = await request<Record<string, unknown>>(`/payments/${charge.data.id}/pixQrCode`, { method: "GET" });
   if (!pix.ok) return pix;
+
+  const pixData = pix.data as Record<string, unknown>;
+  const encodedImage =
+    (pixData.encodedImage as string | undefined) ||
+    (pixData.qrCodeImage as string | undefined) ||
+    (pixData.image as string | undefined) ||
+    (pixData.qrcodeImage as string | undefined) ||
+    null;
+  const payloadPix =
+    (pixData.payload as string | undefined) ||
+    (pixData.qrCode as string | undefined) ||
+    (pixData.copyPaste as string | undefined) ||
+    null;
+  const expirationDate =
+    (pixData.expirationDate as string | undefined) ||
+    (pixData.expiresAt as string | undefined) ||
+    null;
+
+  if (!encodedImage || !payloadPix) {
+    return { ok: false, error: "Asaas não retornou QR Code PIX completo. Tente novamente." };
+  }
 
   // 4. Monta resposta unificada
   return {
@@ -233,9 +250,9 @@ export async function createPixPayment(
       description: payload.description,
       invoiceUrl: null,
       pixTransaction: {
-        encodedImage: pix.data.encodedImage,
-        payload: pix.data.payload,
-        expiresAt: pix.data.expirationDate,
+        encodedImage: encodedImage ?? undefined,
+        payload: payloadPix ?? undefined,
+        expiresAt: expirationDate ?? undefined,
       },
     },
   };
