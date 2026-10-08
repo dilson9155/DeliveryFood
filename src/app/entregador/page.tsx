@@ -5,7 +5,6 @@ import { DeliveryStatus } from "@prisma/client";
 import { MotoboyPanel, type MotoboyDelivery } from "@/components/delivery/MotoboyPanel";
 import { getStoreOrigin } from "@/lib/delivery";
 import { logoutAction } from "@/app/actions/auth";
-import Link from "next/link";
 import { LogOut, Bike } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -102,7 +101,7 @@ export default async function MotoboyPage() {
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session.user.name}
             </span>
-            <form action={async () => { await logoutAction(); }}>
+            <form action={logoutAction}>
               <button className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted">
                 <LogOut className="h-4 w-4" />
                 Sair
