@@ -24,6 +24,7 @@ import {
   CreditCard,
   ArrowLeftRight,
   BookOpen,
+  Tags,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -59,6 +60,7 @@ export function AdminShell({
     { href: "/admin/delivery", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "delivery.view" },
     { href: "/admin/entregadores", label: "Entregadores", icon: <Bike className="h-5 w-5" />, permission: "employees.manage" },
     { href: "/admin/produtos", label: "Produtos", icon: <UtensilsCrossed className="h-5 w-5" />, permission: "products.manage" },
+    { href: "/admin/precificacao", label: "Precificação", icon: <Tags className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/categorias", label: "Categorias", icon: <FolderOpen className="h-5 w-5" />, permission: "categories.manage" },
     { href: "/admin/clientes", label: "Clientes", icon: <Users className="h-5 w-5" />, permission: "customers.view" },
     { href: "/admin/colaboradores", label: "Colaboradores", icon: <UserCog className="h-5 w-5" />, permission: "employees.manage" },

@@ -179,6 +179,7 @@ model User {
   cashMovements   CashMovement[]
   orderHistory    OrderHistory[]
   paymentsConfirmed Payment[]     @relation("PaymentConfirmedBy")
+  pricingRuns       PricingRun[]  @relation("PricingRuns")
 
   @@index([userType])
   @@index([phone])
@@ -217,6 +218,7 @@ model Product {
 
   category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   orderItems  OrderItem[]
+  pricingItems PricingRunItem[]
 
   @@index([categoryId, active, order])
   @@index([active, featured])
@@ -598,4 +600,35 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([action, createdAt])
+}
+
+// === Precificação ===
+// Cada "rodada" de precificação (ex.: reajuste de 10%) aplica novos preços ao
+// catálogo e fica registrada com o antes/depois para poder ser reutilizada.
+model PricingRun {
+  id          String           @id @default(uuid())
+  label       String
+  note        String?
+  totalItems  Int              @default(0)
+  createdById String?
+  createdAt   DateTime         @default(now())
+
+  createdBy   User?            @relation("PricingRuns", fields: [createdById], references: [id], onDelete: SetNull)
+  items       PricingRunItem[]
+
+  @@index([createdAt])
+}
+
+model PricingRunItem {
+  id          String      @id @default(uuid())
+  runId       String
+  productId   String
+  productName String      // snapshot do nome no momento da rodada
+  oldPrice    Float
+  newPrice    Float
+
+  run         PricingRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
 }
