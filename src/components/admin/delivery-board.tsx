@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bike, User as UserIcon, Loader2, RefreshCw, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { formatCurrency, formatTime } from "@/lib/format";
 import { assignMotoboyToOrderAction } from "@/app/actions/admin";
+import { playNewOrderAlert, unlockAudio } from "@/lib/sound";
 
 type Status = "PENDING" | "ASSIGNED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DELIVERED" | "FAILED";
 
@@ -55,6 +56,28 @@ export function DeliveryBoard({
   const { show } = useToast();
   const [deliveries, setDeliveries] = useState(initial);
   const [isPending, startTransition] = useTransition();
+  const lastPendingIds = useRef<Set<string>>(new Set(initial.filter((d) => d.status === "PENDING").map((d) => d.id)));
+  const notifiedIds = useRef<Set<string>>(new Set(lastPendingIds.current));
+
+  useEffect(() => {
+    // Detecta novos pedidos pendentes
+    const pendingIds = new Set(deliveries.filter((d) => d.status === "PENDING").map((d) => d.id));
+    let hasNew = false;
+    for (const id of pendingIds) {
+      if (!notifiedIds.current.has(id)) {
+        hasNew = true;
+        notifiedIds.current.add(id);
+      }
+    }
+    // Se apareceu algum novo PENDING não notificado → alerta
+    if (hasNew) {
+      try {
+        unlockAudio();
+        playNewOrderAlert();
+      } catch {}
+    }
+    lastPendingIds.current = pendingIds;
+  }, [deliveries]);
 
   useEffect(() => {
     const t = setInterval(() => router.refresh(), 8_000);
@@ -99,6 +122,9 @@ export function DeliveryBoard({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => { unlockAudio(); playNewOrderAlert(); }}>
+            Testar som
+          </Button>
           <Button size="sm" variant="outline" onClick={() => router.refresh()}>
             <RefreshCw className="h-4 w-4" />
             Atualizar

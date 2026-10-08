@@ -20,7 +20,6 @@ import {
   UtensilsCrossed as LogoIcon,
   Bike,
   Truck,
-  FileText,
   CreditCard,
   ArrowLeftRight,
   BookOpen,

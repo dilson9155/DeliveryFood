@@ -21,6 +21,7 @@ import {
   recordLocationAction,
 } from "@/app/actions/delivery";
 import { formatCurrency } from "@/lib/format";
+import { playBell, unlockAudio } from "@/lib/sound";
 import type { LatLng } from "@/lib/geo";
 
 type DeliveryStatus = "PENDING" | "ASSIGNED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DELIVERED" | "FAILED";
@@ -79,6 +80,7 @@ export function MotoboyPanel({
   const watchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
   const [tracking, setTracking] = useState(false);
+  const seenIds = useRef<Set<string>>(new Set(initial.map((d) => d.id)));
 
   // Inicia watchPosition quando uma entrega OUT_FOR_DELIVERY é selecionada
   useEffect(() => {
@@ -140,6 +142,22 @@ export function MotoboyPanel({
     const t = setInterval(refresh, 15_000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  useEffect(() => {
+    // Alerta ao receber novas entregas atribuídas
+    let hasNew = false;
+    for (const d of deliveries) {
+      if (d.status === "ASSIGNED" && !seenIds.current.has(d.id)) {
+        hasNew = true;
+        seenIds.current.add(d.id);
+      }
+    }
+    if (hasNew) {
+      try { unlockAudio(); playBell(0.9); } catch {}
+    }
+    // Atualiza conjunto
+    for (const d of deliveries) seenIds.current.add(d.id);
+  }, [deliveries]);
 
   function startRoute(d: MotoboyDelivery) {
     startTransition(async () => {
@@ -216,6 +234,9 @@ export function MotoboyPanel({
               Compartilhando
             </span>
           )}
+          <Button size="sm" variant="outline" onClick={() => { unlockAudio(); playBell(0.9); }}>
+            Testar som
+          </Button>
           <Button size="sm" variant="outline" onClick={refresh}>
             <RefreshCw className="h-4 w-4" />
           </Button>
