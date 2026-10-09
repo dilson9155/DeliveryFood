@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -25,6 +25,8 @@ import {
   BookOpen,
   Tags,
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -37,6 +39,8 @@ type NavItem = {
   permission?: Permission | null;
 };
 
+const COLLAPSE_KEY = "df.adminSidebarCollapsed";
+
 export function AdminShell({
   user,
   settings,
@@ -48,6 +52,29 @@ export function AdminShell({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // começa como `null` para evitar flicker de SSR; lido depois em useEffect
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(COLLAPSE_KEY);
+      setCollapsed(saved === "1");
+    } catch {
+      setCollapsed(false);
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !(prev ?? false);
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const sessionUser: SessionUser = {
     id: user.id,
@@ -58,6 +85,7 @@ export function AdminShell({
 
   const storeName = settings?.storeName ?? "Delivery Food";
   const logoUrl = settings?.logoUrl ?? null;
+  const isCollapsed = collapsed === true;
 
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
@@ -83,23 +111,62 @@ export function AdminShell({
 
   const Sidebar = (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logoUrl}
-            alt={storeName}
-            className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
-          />
-        ) : (
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <LogoIcon className="h-5 w-5" />
-          </span>
+      {/* Header do sidebar com logo + botão recolher */}
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-border",
+          isCollapsed ? "justify-center px-2" : "gap-2.5 px-5"
         )}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold leading-tight">{storeName}</p>
-          <p className="text-[11px] text-muted-foreground">Painel de controle</p>
-        </div>
+      >
+        {!isCollapsed && (
+          <>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt={storeName}
+                className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+              />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
+                <LogoIcon className="h-5 w-5" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold leading-tight">{storeName}</p>
+              <p className="text-[11px] text-muted-foreground">Painel de controle</p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground lg:flex"
+              title="Recolher menu"
+              aria-label="Recolher menu"
+            >
+              <PanelLeftClose className="h-5 w-5" />
+            </button>
+          </>
+        )}
+        {isCollapsed && (
+          <div className="flex w-full items-center justify-center">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt={storeName}
+                title={storeName}
+                className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+              />
+            ) : (
+              <span
+                title={storeName}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white"
+              >
+                <LogoIcon className="h-5 w-5" />
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
@@ -110,40 +177,74 @@ export function AdminShell({
               key={item.href}
               href={item.href}
               onClick={() => setSidebarOpen(false)}
+              title={isCollapsed ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center rounded-xl text-sm font-medium transition-colors",
+                isCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
                 active
                   ? "bg-brand-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               {item.icon}
-              {item.label}
+              {!isCollapsed && item.label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-border p-3">
-        <div className="mb-2 flex items-center gap-2.5 px-1">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-bold">
-            {user.name.charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
-          </div>
-        </div>
-        <form
-          action={async () => {
-            await logoutAction();
-          }}
-        >
-          <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-danger hover:bg-danger/5">
-            <LogOut className="h-5 w-5" />
-            Sair do painel
-          </button>
-        </form>
+      <div className={cn("border-t border-border p-3", isCollapsed && "flex flex-col items-center gap-2")}>
+        {!isCollapsed ? (
+          <>
+            <div className="mb-2 flex items-center gap-2.5 px-1">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-bold">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{user.name}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
+              </div>
+            </div>
+            <form
+              action={async () => {
+                await logoutAction();
+              }}
+            >
+              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-danger hover:bg-danger/5">
+                <LogOut className="h-5 w-5" />
+                Sair do painel
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <span
+              title={user.name}
+              className="flex h-9 w-9 cursor-default items-center justify-center rounded-full bg-muted text-sm font-bold"
+            >
+              {user.name.charAt(0).toUpperCase()}
+            </span>
+            <form action={async () => { await logoutAction(); }}>
+              <button
+                type="submit"
+                title="Sair do painel"
+                aria-label="Sair do painel"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-danger hover:bg-danger/5"
+              >
+                <LogOut className="h-5 w-5" />
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Expandir menu"
+              aria-label="Expandir menu"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <PanelLeftOpen className="h-5 w-5" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -151,7 +252,12 @@ export function AdminShell({
   return (
     <div className="flex min-h-screen bg-muted/40">
       {/* Sidebar desktop */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-border bg-card lg:block">
+      <aside
+        className={cn(
+          "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card transition-[width] duration-200 ease-out lg:block",
+          isCollapsed ? "w-16" : "w-64"
+        )}
+      >
         {Sidebar}
       </aside>
 
@@ -180,6 +286,18 @@ export function AdminShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
+          {/* Quando colapsado, mostra nome + cargo no header */}
+          {isCollapsed && (
+            <div className="hidden items-center gap-2 lg:flex">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium leading-tight">{user.name}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
+              </div>
+            </div>
+          )}
           <Link
             href="/"
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
