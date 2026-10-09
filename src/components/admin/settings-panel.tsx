@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Save, Store, Clock, Power, MoveRight, Upload, Trash2, Printer } from "lucide-react";
+import { Save, Store, Clock, Power, MoveRight, Upload, Trash2, Printer, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
@@ -11,6 +11,7 @@ import {
   saveBusinessHoursAction,
   toggleOpenOverrideAction,
 } from "@/app/actions/admin";
+import { cleanTestDataAction } from "@/app/actions/admin-clean";
 import { TEMPLATES, DEFAULT_TEMPLATE_ID } from "@/lib/print-templates";
 
 const DAYS = [
@@ -60,6 +61,10 @@ export function SettingsPanel({
 }) {
   const { show } = useToast();
   const [, startTransition] = useTransition();
+  const [cleaning, startCleaning] = useTransition();
+  const [cleanConfirm, setCleanConfirm] = useState("");
+  const [keepLast, setKeepLast] = useState("20");
+  const [forceAll, setForceAll] = useState(false);
 
   const [form, setForm] = useState({
     storeName: initial?.storeName ?? "Meu Estabelecimento",
@@ -105,6 +110,26 @@ export function SettingsPanel({
 
   function set(k: string, v: string | number) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function runClean() {
+    if (cleanConfirm !== "LIMPAR") {
+      show("error", "Digite LIMPAR para confirmar");
+      return;
+    }
+    startCleaning(async () => {
+      const res = await cleanTestDataAction({
+        confirm: "LIMPAR",
+        forceAll,
+        keepLastOrders: Number(keepLast) || 20,
+      });
+      if (!res.ok) {
+        show("error", res.error);
+        return;
+      }
+      show("success", `Dados limpos: ${res.summary.ordersDeleted} pedidos removidos`);
+      setCleanConfirm("");
+    });
   }
 
   function setHour(n: number, patch: Partial<HourRow>) {
@@ -427,6 +452,61 @@ export function SettingsPanel({
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trash2 className="h-4 w-4 text-danger" /> Limpeza de dados de teste
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Remove pedidos antigos, entregas, pagamentos, histórico, campanhas de disparo e notificações. <strong>Não remove</strong> usuários,
+            produtos, categorias, configurações, caixas, contas a pagar/receber.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={forceAll} onChange={(e) => setForceAll(e.target.checked)} />
+              Apagar todos os pedidos (ignorar &quot;manter últimos&quot;)
+            </label>
+            {!forceAll && (
+              <div className="flex items-center gap-2">
+                <Label className="text-sm">Manter últimos</Label>
+                <input
+                  type="number"
+                  value={keepLast}
+                  onChange={(e) => setKeepLast(e.target.value)}
+                  min="1"
+                  max="200"
+                  className="h-9 w-20 rounded-xl border border-border bg-background px-2 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">pedidos</span>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={cleanConfirm}
+              onChange={(e) => setCleanConfirm(e.target.value.toUpperCase())}
+              placeholder="Digite LIMPAR para confirmar"
+              className="h-9 max-w-xs"
+            />
+            <Button
+              variant="danger"
+              onClick={runClean}
+              disabled={cleaning || cleanConfirm !== "LIMPAR"}
+              className="gap-1.5"
+            >
+              {cleaning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Limpar dados de teste
+            </Button>
+          </div>
+          <p className="flex items-center gap-1.5 text-xs text-warning">
+            <AlertTriangle className="h-3.5 w-3.5" /> Esta ação é irreversível.
+          </p>
+        </CardContent>
+      </Card>
+      <div className="h-10" />
     </div>
   );
 }
