@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
+import { AlertBannerProvider, useAlertBanner } from "@/components/ui/alert-banner";
 import {
   saveSettingsAction,
   saveBusinessHoursAction,
@@ -53,6 +54,20 @@ type HourRow = {
 };
 
 export function SettingsPanel({
+  settings,
+  hours,
+}: {
+  settings: SettingsData | null;
+  hours: HourRow[];
+}) {
+  return (
+    <AlertBannerProvider>
+      <SettingsPanelInner settings={settings} hours={hours} />
+    </AlertBannerProvider>
+  );
+}
+
+function SettingsPanelInner({
   settings: initial,
   hours: initialHours,
 }: {
@@ -60,6 +75,7 @@ export function SettingsPanel({
   hours: HourRow[];
 }) {
   const { show } = useToast();
+  const banner = useAlertBanner();
   const [, startTransition] = useTransition();
   const [cleaning, startCleaning] = useTransition();
   const [cleanConfirm, setCleanConfirm] = useState("");
@@ -114,7 +130,12 @@ export function SettingsPanel({
 
   async function runClean() {
     if (cleanConfirm !== "LIMPAR") {
-      show("error", "Digite LIMPAR para confirmar");
+      banner.show({
+        type: "warning",
+        title: "Confirmação pendente",
+        message: "Digite LIMPAR no campo acima para confirmar a limpeza.",
+        duration: 4000,
+      });
       return;
     }
     startCleaning(async () => {
@@ -124,10 +145,32 @@ export function SettingsPanel({
         keepLastOrders: Number(keepLast) || 20,
       });
       if (!res.ok) {
-        show("error", res.error);
+        banner.show({
+          type: "error",
+          title: "Falha na limpeza",
+          message: res.error,
+          duration: 7000,
+        });
         return;
       }
-      show("success", `Dados limpos: ${res.summary.ordersDeleted} pedidos removidos`);
+      const s = res.summary;
+      banner.show({
+        type: "success",
+        title: "Dados de teste removidos",
+        message: `${s.ordersDeleted} pedido(s), ${s.deliveries} entrega(s) e ${s.campaigns} campanha(s) foram removidos.`,
+        details: [
+          { label: "Pedidos removidos", value: s.ordersDeleted },
+          { label: "Entregas", value: s.deliveries },
+          { label: "Locais de entrega", value: s.deliveryLocations },
+          { label: "Intenções / eventos pagamento", value: `${s.paymentIntents} / ${s.paymentEvents}` },
+          { label: "Pagamentos / recebíveis", value: `${s.payments} / ${s.receivables}` },
+          { label: "Itens / histórico", value: `${s.orderItems} / ${s.orderHistory}` },
+          { label: "Movimentos de caixa", value: s.cashMovements },
+          { label: "Campanhas + destinatários", value: `${s.campaigns} + ${s.campaignRecipients}` },
+          { label: "Notificações", value: s.notifications },
+        ],
+        duration: 0,
+      });
       setCleanConfirm("");
     });
   }

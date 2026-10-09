@@ -43,6 +43,23 @@ function isUserResult(v: SessionUser | AdminResult): v is SessionUser {
   return !("ok" in v);
 }
 
+async function requireAnyEmployee(): Promise<SessionUser | AdminResult> {
+  const session = await auth();
+  const s = session as unknown as {
+    user?: { id: string; userType: UserType; role: SessionUser["role"]; name?: string | null; email?: string | null };
+  };
+  if (!s?.user || s.user.userType !== UserType.EMPLOYEE || !s.user.role) {
+    return { ok: false, error: "Acesso restrito a colaboradores." };
+  }
+  return {
+    id: s.user.id,
+    userType: UserType.EMPLOYEE,
+    role: s.user.role,
+    name: s.user.name,
+    email: s.user.email,
+  };
+}
+
 // ---------------- Produtos ----------------
 
 export async function saveProductAction(data: {
@@ -350,6 +367,120 @@ export async function toggleEmployeeActiveAction(
 
   revalidatePath("/admin/colaboradores");
   return { ok: true };
+}
+
+export async function deleteEmployeeAction(input: {
+  id: string;
+  confirmLogin: string;
+}): Promise<(AdminResult & { name?: string; orders?: number; deliveries?: number })> {  const user = await requireEmployee("employees.manage");
+  if (!isUserResult(user)) return user;
+
+  const employee = await prisma.user.findUnique({
+    where: { id: input.id },
+    select: {
+      id: true,
+      userType: true,
+      name: true,
+      login: true,
+      role: true,
+      active: true,
+      _count: { select: { orders: true, deliveries: true, auditLogs: true } },
+    },
+  });
+  if (!employee || employee.userType !== UserType.EMPLOYEE) {
+    return { ok: false, error: "Colaborador não encontrado." };
+  }
+
+  if (employee.id === user.id) {
+    return { ok: false, error: "Você não pode excluir o seu próprio usuário." };
+  }
+
+  if (employee.login?.toLowerCase() !== input.confirmLogin.trim().toLowerCase()) {
+    return { ok: false, error: `Confirmação inválida. Digite exatamente o login "${employee.login}" para excluir.` };
+  }
+
+  if (employee.role === EmployeeRole.ADMIN) {
+    const otherAdmins = await prisma.user.count({
+      where: {
+        userType: UserType.EMPLOYEE,
+        role: EmployeeRole.ADMIN,
+        active: true,
+        id: { not: employee.id },
+      },
+    });
+    if (otherAdmins === 0) {
+      return { ok: false, error: "Não é possível excluir o último administrador ativo do sistema." };
+    }
+  }
+
+  const removed = {
+    orders: employee._count.orders,
+    deliveries: employee._count.deliveries,
+  };
+
+  await prisma.user.delete({ where: { id: employee.id } });
+  await audit({
+    userId: user.id,
+    action: "DELETE",
+    resource: "employee",
+    entityId: employee.id,
+    details: `Colaborador "${employee.name}" (@${employee.login}) excluído`,
+  });
+
+  revalidatePath("/admin/colaboradores");
+  return { ok: true, name: employee.name, ...removed };
+}
+
+// ---------------- Excluir cliente ----------------
+
+export async function deleteCustomerAction(input: {
+  id: string;
+  confirmPhone: string;
+}): Promise<AdminResult & { name?: string; addressesRemoved?: number }> {
+  const user = await requireAnyEmployee();
+  if (!isUserResult(user)) return user;
+
+  const customer = await prisma.user.findUnique({
+    where: { id: input.id },
+    select: {
+      id: true,
+      userType: true,
+      name: true,
+      phone: true,
+      active: true,
+      _count: { select: { orders: true, addresses: true, receivables: true, notifications: true, campaignRecipients: true } },
+    },
+  });
+  if (!customer || customer.userType !== UserType.CUSTOMER) {
+    return { ok: false, error: "Cliente não encontrado." };
+  }
+
+  const refPhone = (customer.phone ?? "").replace(/\D/g, "");
+  const inputPhone = input.confirmPhone.replace(/\D/g, "");
+  if (!refPhone || refPhone !== inputPhone) {
+    return { ok: false, error: `Confirmação inválida. Digite o telefone cadastrado (somente números) para excluir.` };
+  }
+
+  if (customer._count.orders > 0 || customer._count.receivables > 0) {
+    return {
+      ok: false,
+      error: `Este cliente possui ${customer._count.orders} pedido(s) e ${customer._count.receivables} recebível(is). Exclua os pedidos primeiro ou desative o cliente.`,
+    };
+  }
+
+  const addressesRemoved = customer._count.addresses;
+
+  await prisma.user.delete({ where: { id: customer.id } });
+  await audit({
+    userId: user.id,
+    action: "DELETE",
+    resource: "customer",
+    entityId: customer.id,
+    details: `Cliente "${customer.name}" excluído (${addressesRemoved} endereço(s), ${customer._count.notifications} notificação(ões) removidas)`,
+  });
+
+  revalidatePath("/admin/clientes");
+  return { ok: true, name: customer.name, addressesRemoved };
 }
 
 // ---------------- Configurações ----------------

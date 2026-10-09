@@ -17,7 +17,13 @@ export default async function CustomersPage() {
       email: true,
       active: true,
       createdAt: true,
-      _count: { select: { orders: true } },
+      _count: {
+        select: {
+          orders: true,
+          addresses: true,
+          receivables: true,
+        },
+      },
     },
     take: 500,
   });

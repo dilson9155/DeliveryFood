@@ -98,3 +98,11 @@ tsconfig.tsbuildinfo
 yarn.lock
 bun.lockb
 pnpm-lock.yaml
+node_modules
+*.log
+dev*.log
+dev.err
+dev.out
+err.txt
+out.txt
+
