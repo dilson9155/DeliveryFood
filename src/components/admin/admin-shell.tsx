@@ -39,9 +39,11 @@ type NavItem = {
 
 export function AdminShell({
   user,
+  settings,
   children,
 }: {
   user: { id: string; name: string; role: SessionUser["role"] };
+  settings?: { storeName: string; logoUrl: string | null };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -53,6 +55,9 @@ export function AdminShell({
     role: user.role,
     name: user.name,
   };
+
+  const storeName = settings?.storeName ?? "Delivery Food";
+  const logoUrl = settings?.logoUrl ?? null;
 
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
@@ -79,11 +84,20 @@ export function AdminShell({
   const Sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
-          <LogoIcon className="h-5 w-5" />
-        </span>
-        <div>
-          <p className="text-sm font-bold leading-tight">Delivery Food</p>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={storeName}
+            className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+          />
+        ) : (
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
+            <LogoIcon className="h-5 w-5" />
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold leading-tight">{storeName}</p>
           <p className="text-[11px] text-muted-foreground">Painel de controle</p>
         </div>
       </div>

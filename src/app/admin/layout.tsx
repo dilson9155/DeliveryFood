@@ -27,6 +27,11 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
+  const settings = await prisma.settings.findUnique({
+    where: { id: "default" },
+    select: { storeName: true, logoUrl: true },
+  });
+
   return (
     <AdminShell
       user={{
@@ -34,6 +39,7 @@ export default async function AdminLayout({
         name: user.name,
         role: user.role,
       }}
+      settings={settings ? { storeName: settings.storeName, logoUrl: settings.logoUrl } : undefined}
     >
       {children}
     </AdminShell>
