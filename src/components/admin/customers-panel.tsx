@@ -7,9 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
 import { AlertBannerProvider, useAlertBanner } from "@/components/ui/alert-banner";
+import { Avatar } from "@/components/ui/avatar";
+import { AvatarUploader } from "@/components/ui/avatar-uploader";
 import { EmptyState } from "@/components/ui/empty";
 import { formatDate, formatPhone, cn } from "@/lib/format";
 import { deleteCustomerAction } from "@/app/actions/admin";
+import { updateUserAvatarAction } from "@/app/actions/avatar";
 
 type Customer = {
   id: string;
@@ -18,7 +21,12 @@ type Customer = {
   email: string | null;
   active: boolean;
   createdAt: string;
-  _count: { orders: number };
+  avatarUrl: string | null;
+  _count: {
+    orders: number;
+    addresses: number;
+    receivables: number;
+  };
 };
 
 export function CustomersPanel({ customers }: { customers: Customer[] }) {
@@ -85,9 +93,7 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-800">
-                        {c.name.charAt(0).toUpperCase()}
-                      </span>
+                      <Avatar name={c.name} src={c.avatarUrl} size="md" />
                       <div>
                         <p className="truncate text-sm font-bold">{c.name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -151,6 +157,24 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
                   {confirmDelete.phone ? formatPhone(confirmDelete.phone) : "—"} · {confirmDelete.email ?? "sem e-mail"}
                 </li>
               </ul>
+              <AvatarUploader
+                name={confirmDelete.name}
+                currentUrl={confirmDelete.avatarUrl ?? null}
+                size="md"
+                label="Atualizar foto do cliente"
+                onChange={async (dataUrl) => {
+                  const r = await updateUserAvatarAction({ userId: confirmDelete.id, dataUrl });
+                  if (r.ok) {
+                    setItems((prev) =>
+                      prev.map((x) =>
+                        x.id === confirmDelete.id ? { ...x, avatarUrl: r.avatarUrl ?? null } : x
+                      )
+                    );
+                    setConfirmDelete((cd) => (cd ? { ...cd, avatarUrl: r.avatarUrl ?? null } : cd));
+                  }
+                  return r;
+                }}
+              />
               <div>
                 <Label htmlFor="del-cust-confirm">
                   Digite o telefone do cliente (somente números) para confirmar

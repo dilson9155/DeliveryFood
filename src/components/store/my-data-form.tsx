@@ -16,10 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { AvatarUploader } from "@/components/ui/avatar-uploader";
 import {
   updateProfileAction,
   changePasswordAction,
 } from "@/app/actions/profile";
+import { updateMyAvatarAction } from "@/app/actions/avatar";
 import { formatTaxId } from "@/lib/format";
 import {
   saveAddressAction,
@@ -47,6 +49,7 @@ export function MyDataForm({
   taxId: initialTaxId,
   defaultObservation: initialObs,
   addresses: initialAddresses,
+  avatarUrl: initialAvatarUrl,
 }: {
   name: string;
   phone: string;
@@ -54,6 +57,7 @@ export function MyDataForm({
   taxId: string;
   defaultObservation: string;
   addresses: Address[];
+  avatarUrl: string | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -171,6 +175,20 @@ export function MyDataForm({
   return (
     <div className="container-store py-8">
       <h1 className="mb-5 text-xl font-bold sm:text-2xl">Meus dados</h1>
+
+      <Card className="mb-6 p-6 md:p-7">
+        <AvatarUploader
+          name={name}
+          currentUrl={initialAvatarUrl}
+          size="lg"
+          label="Sua foto de perfil"
+          onChange={async (dataUrl) => {
+            const r = await updateMyAvatarAction({ dataUrl });
+            return r;
+          }}
+        />
+      </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-6 md:p-7">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-bold">

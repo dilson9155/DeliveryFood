@@ -17,6 +17,7 @@ export default async function CustomersPage() {
       email: true,
       active: true,
       createdAt: true,
+      avatarUrl: true,
       _count: {
         select: {
           orders: true,

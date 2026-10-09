@@ -164,6 +164,7 @@ model User {
   lastLogin       DateTime?
   defaultObservation String?    @db.VarChar(500)
   taxId             String?    @db.VarChar(18)
+  avatarUrl         String?    @db.VarChar(2048)
   vehiclePlate      String?
   vehicleModel      String?
   createdAt       DateTime      @default(now())

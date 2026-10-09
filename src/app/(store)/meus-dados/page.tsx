@@ -15,7 +15,7 @@ export default async function MyDataPage() {
   const [user, addresses] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { name: true, phone: true, email: true, userType: true, defaultObservation: true, taxId: true },
+      select: { name: true, phone: true, email: true, userType: true, defaultObservation: true, taxId: true, avatarUrl: true },
     }),
     prisma.address.findMany({
       where: { userId: session.user.id },
@@ -32,6 +32,7 @@ export default async function MyDataPage() {
       taxId={user.taxId ?? ""}
       defaultObservation={user.defaultObservation ?? ""}
       addresses={JSON.parse(JSON.stringify(addresses))}
+      avatarUrl={user.avatarUrl ?? null}
     />
   );
 }

@@ -25,6 +25,7 @@ export default async function EmployeesPage() {
       active: true,
       lastLogin: true,
       createdAt: true,
+      avatarUrl: true,
     },
   });
 

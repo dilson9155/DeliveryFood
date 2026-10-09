@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Plus, Pencil, Power, PowerOff, X, Search, Shield, Trash2 } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, X, Search, Shield, Trash2, Camera } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,10 @@ import { Input, Select, Label } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
 import { AlertBannerProvider, useAlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty";
+import { AvatarUploader } from "@/components/ui/avatar-uploader";
+import { Avatar } from "@/components/ui/avatar";
 import { saveEmployeeAction, toggleEmployeeActiveAction, deleteEmployeeAction } from "@/app/actions/admin";
+import { updateUserAvatarAction } from "@/app/actions/avatar";
 import { ROLE_LABELS } from "@/lib/permissions";
 import type { EmployeeRole } from "@prisma/client";
 
@@ -23,6 +26,7 @@ type Employee = {
   active: boolean;
   lastLogin: string | null;
   createdAt: string;
+  avatarUrl: string | null;
 };
 
 const ROLES: EmployeeRole[] = ["ADMIN", "MANAGER", "ATTENDANT", "KITCHEN", "CASHIER"];
@@ -100,9 +104,7 @@ function EmployeesPanelInner({
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 text-lg font-bold text-brand-800">
-                      {e.name.charAt(0).toUpperCase()}
-                    </span>
+                    <Avatar name={e.name} src={e.avatarUrl} size="md" />
                     <div>
                       <p className="truncate text-sm font-bold">{e.name}</p>
                       <p className="text-xs text-muted-foreground">@{e.login}</p>
@@ -158,6 +160,7 @@ function EmployeesPanelInner({
         <EmployeeForm
           employee={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
+          setEmployees={setEmployees}
         />
       )}
 
@@ -247,9 +250,11 @@ function EmployeesPanelInner({
 function EmployeeForm({
   employee,
   onClose,
+  setEmployees,
 }: {
   employee: Employee | null;
   onClose: () => void;
+  setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
 }) {
   const { show } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -294,6 +299,26 @@ function EmployeeForm({
           </button>
         </div>
         <div className="space-y-4 p-5">
+          {employee && (
+            <AvatarUploader
+              name={form.name || employee.name}
+              currentUrl={employee.avatarUrl ?? null}
+              onChange={async (dataUrl) => {
+                const r = await updateUserAvatarAction({ userId: employee.id, dataUrl });
+                if (r.ok) {
+                  // reflete o avatar no card sem esperar revalidate
+                  setEmployees((prev) =>
+                    prev.map((x) =>
+                      x.id === employee.id ? { ...x, avatarUrl: r.avatarUrl ?? null } : x
+                    )
+                  );
+                }
+                return r;
+              }}
+              size="lg"
+              label="Foto do colaborador"
+            />
+          )}
           <div>
             <Label htmlFor="emp-name">Nome</Label>
             <Input id="emp-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />

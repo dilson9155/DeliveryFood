@@ -21,7 +21,7 @@ export default async function AdminLayout({
 
   const user = await prisma.user.findUnique({
     where: { id: s.user.id },
-    select: { name: true, role: true, active: true },
+    select: { name: true, role: true, active: true, avatarUrl: true },
   });
   if (!user || !user.active) {
     redirect("/login");
@@ -38,6 +38,7 @@ export default async function AdminLayout({
         id: s.user.id,
         name: user.name,
         role: user.role,
+        avatarUrl: user.avatarUrl,
       }}
       settings={settings ? { storeName: settings.storeName, logoUrl: settings.logoUrl } : undefined}
     >

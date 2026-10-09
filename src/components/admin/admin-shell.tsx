@@ -32,6 +32,7 @@ import {
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/format";
+import { Avatar } from "@/components/ui/avatar";
 
 type NavItem = {
   href: string;
@@ -47,7 +48,7 @@ export function AdminShell({
   settings,
   children,
 }: {
-  user: { id: string; name: string; role: SessionUser["role"] };
+  user: { id: string; name: string; role: SessionUser["role"]; avatarUrl?: string | null };
   settings?: { storeName: string; logoUrl: string | null };
   children: React.ReactNode;
 }) {
@@ -229,9 +230,7 @@ export function AdminShell({
         {!isCollapsed ? (
           <>
             <div className="mb-2 flex items-center gap-2.5 px-1">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-bold">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
+              <Avatar name={user.name} src={user.avatarUrl} size="md" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{user.name}</p>
                 <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
@@ -252,9 +251,9 @@ export function AdminShell({
           <>
             <span
               title={user.name}
-              className="flex h-9 w-9 cursor-default items-center justify-center rounded-full bg-muted text-sm font-bold"
+              className="cursor-default"
             >
-              {user.name.charAt(0).toUpperCase()}
+              <Avatar name={user.name} src={user.avatarUrl} size="md" ring={false} />
             </span>
             <form action={async () => { await logoutAction(); }}>
               <button
@@ -347,9 +346,7 @@ export function AdminShell({
           {/* Quando colapsado, mostra nome + cargo do usuário */}
           {isCollapsed && (
             <div className="hidden items-center gap-2 lg:flex">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
+              <Avatar name={user.name} src={user.avatarUrl} size="sm" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium leading-tight">{user.name}</p>
                 <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
