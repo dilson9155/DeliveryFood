@@ -14,6 +14,7 @@ import {
   Trash2,
   Users,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ export function MessagesPanel({ customers, campaigns }: Props) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [checkingEvolution, setCheckingEvolution] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -187,6 +189,31 @@ export function MessagesPanel({ customers, campaigns }: Props) {
     });
   };
 
+  const checkEvolution = async () => {
+    setCheckingEvolution(true);
+    try {
+      const res = await fetch("/api/admin/evolution-status", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        show("error", `Evolution API: ${data?.error ?? "erro"}`);
+        return;
+      }
+      if (!data.configured) {
+        show("error", "Evolution API não configurada. Defina EVOLUTION_API_URL/KEY/INSTANCE no .env.");
+        return;
+      }
+      const ph = data.phoneNumber ? `, telefone ${data.phoneNumber}` : "";
+      show(
+        "success",
+        `Evolution API OK · instância "${data.instance}" · estado: ${data.status}${ph}`
+      );
+    } catch (e) {
+      show("error", e instanceof Error ? e.message : "Falha de rede");
+    } finally {
+      setCheckingEvolution(false);
+    }
+  };
+
   const cancel = (id: string) => {
     setCancellingId(id);
     startTransition(async () => {
@@ -254,13 +281,19 @@ export function MessagesPanel({ customers, campaigns }: Props) {
           <h1 className="text-xl font-bold sm:text-2xl">Disparo de Mensagens</h1>
           <p className="text-sm text-muted-foreground">Envio em massa via Evolution API com variáveis, prévia e histórico.</p>
         </div>
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
-          <TabButton active={tab === "new"} onClick={() => setTab("new")}>
-            <MessageCircle className="h-4 w-4" /> Novo disparo
-          </TabButton>
-          <TabButton active={tab === "history"} onClick={() => setTab("history")}>
-            <MessagesSquare className="h-4 w-4" /> Histórico
-          </TabButton>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={checkEvolution} disabled={checkingEvolution}>
+            {checkingEvolution ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Testar Evolution API
+          </Button>
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+            <TabButton active={tab === "new"} onClick={() => setTab("new")}>
+              <MessageCircle className="h-4 w-4" /> Novo disparo
+            </TabButton>
+            <TabButton active={tab === "history"} onClick={() => setTab("history")}>
+              <MessagesSquare className="h-4 w-4" /> Histórico
+            </TabButton>
+          </div>
         </div>
       </div>
 
