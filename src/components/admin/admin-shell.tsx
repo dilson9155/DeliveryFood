@@ -27,6 +27,7 @@ import {
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -169,7 +170,7 @@ export function AdminShell({
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         {visibleNav.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -179,15 +180,46 @@ export function AdminShell({
               onClick={() => setSidebarOpen(false)}
               title={isCollapsed ? item.label : undefined}
               className={cn(
-                "flex items-center rounded-xl text-sm font-medium transition-colors",
-                isCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+                "group/nav relative flex items-center rounded-xl text-sm font-medium transition-all duration-150",
+                isCollapsed
+                  ? "justify-center px-0 py-2.5"
+                  : "gap-3 px-3 py-2.5",
                 active
-                  ? "bg-brand-600 text-white shadow-sm"
+                  ? isCollapsed
+                    ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200"
+                    : "bg-brand-600 text-white shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              {item.icon}
-              {!isCollapsed && item.label}
+              {/* Indicador lateral de item ativo (expandido) */}
+              {!isCollapsed && active && (
+                <span className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand-600" />
+              )}
+              {/* Ícone — escala maior quando colapsado */}
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center transition-transform duration-150",
+                  isCollapsed ? "h-7 w-7 [&>svg]:h-5 [&>svg]:w-5" : "[&>svg]:h-5 [&>svg]:w-5",
+                  active && isCollapsed && "scale-110",
+                  "group-hover/nav:scale-105"
+                )}
+              >
+                {item.icon}
+              </span>
+              {!isCollapsed && <span className="truncate">{item.label}</span>}
+              {/* Tooltip elegante quando colapsado (CSS puro) */}
+              {isCollapsed && (
+                <span
+                  className={cn(
+                    "pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg border border-border bg-foreground px-2.5 py-1 text-xs font-medium text-background opacity-0 shadow-lg transition-all duration-150",
+                    "group-hover/nav:translate-x-0 group-hover/nav:opacity-100"
+                  )}
+                  role="tooltip"
+                >
+                  {item.label}
+                  <span className="absolute -left-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-l border-b border-border bg-foreground" />
+                </span>
+              )}
             </Link>
           );
         })}
@@ -285,8 +317,34 @@ export function AdminShell({
           >
             <Menu className="h-5 w-5" />
           </button>
+
+          {/* Nome do sistema (preenche o espaço vazio) - à esquerda em telas grandes */}
+          <div className="flex min-w-0 items-center gap-2.5 lg:gap-3">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl}
+                alt={storeName}
+                className="hidden h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border lg:block"
+              />
+            ) : (
+              <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white shadow-sm lg:flex">
+                <Sparkles className="h-4 w-4" />
+              </span>
+            )}
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-bold tracking-tight sm:text-base">
+                {storeName}
+              </p>
+              <p className="hidden truncate text-[11px] text-muted-foreground sm:block">
+                Painel administrativo
+              </p>
+            </div>
+          </div>
+
           <div className="flex-1" />
-          {/* Quando colapsado, mostra nome + cargo no header */}
+
+          {/* Quando colapsado, mostra nome + cargo do usuário */}
           {isCollapsed && (
             <div className="hidden items-center gap-2 lg:flex">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold">
@@ -298,9 +356,10 @@ export function AdminShell({
               </div>
             </div>
           )}
+
           <Link
             href="/"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             Ver loja
           </Link>
