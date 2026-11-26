@@ -376,10 +376,14 @@ export function ComandasPanel({
                     <CardTitle className="text-sm">
                       Comanda #{String(selected.number).padStart(4, "0")} · {selected.tableName}
                     </CardTitle>
-                    <p className="truncate text-[10px] text-muted-foreground">
-                      {formatTime(selected.openedAt)}
-                      {selected.customerName ? ` · ${selected.customerName}` : " · Sem cliente"}
-                    </p>
+                    <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {formatTime(selected.openedAt)}
+                      </span>
+                      <span className="truncate text-base font-extrabold leading-tight text-brand-700">
+                        {selected.customerName || "Consumidor final"}
+                      </span>
+                    </div>
                   </div>
                   <span className="text-lg font-extrabold text-brand-700">
                     {formatCurrency(selected.total)}
