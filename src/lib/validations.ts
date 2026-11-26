@@ -121,6 +121,16 @@ export const businessHoursSchema = z.object({
 export const orderItemInputSchema = z.object({
   productId: z.string().min(1),
   quantity: z.number().int().min(1).max(99),
+  options: z
+    .array(
+      z.object({
+        groupId: z.string().min(1),
+        optionId: z.string().min(1),
+        quantity: z.number().int().min(1).max(99),
+      })
+    )
+    .max(60)
+    .optional(),
 });
 
 const deliveryAddressSchema = z.object({
@@ -150,6 +160,29 @@ export const createOrderSchema = z.object({
       lng: z.number().optional(),
     })
     .optional(),
+});
+
+/** Cliente criado em segundos no PDV: apenas nome e telefone são obrigatórios. */
+export const quickCustomerSchema = z.object({
+  name: z.string().min(2, "Informe o nome do cliente").max(120),
+  phone: phoneSchema,
+  email: z
+    .union([z.string().email("E-mail inválido"), z.literal(""), z.null()])
+    .optional()
+    .transform((v) => (v ? v.toLowerCase().trim() : null)),
+  taxId: z
+    .union([taxIdSchema, z.literal(""), z.null()])
+    .optional()
+    .transform((v) => v || null),
+});
+
+/** Pedido montado pelo atendente no PDV (sem entrega, sem geolocalização). */
+export const posOrderSchema = z.object({
+  customerId: z.string().min(1, "Selecione ou cadastre um cliente"),
+  items: z.array(orderItemInputSchema).min(1, "Carrinho vazio"),
+  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+  paidNow: z.boolean().optional().default(false),
+  observation: z.string().max(500).optional().nullable(),
 });
 
 export const cashMovementSchema = z.object({

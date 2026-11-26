@@ -26,10 +26,12 @@ import {
   DeliveryStatus,
   type Order,
   type PaymentMethod,
+  Prisma,
 } from "@prisma/client";
+import type { OptionSelection } from "@/lib/product-options";
 
 export type CreateOrderInput = {
-  items: { productId: string; quantity: number }[];
+  items: { productId: string; quantity: number; options?: OptionSelection[] }[];
   paymentMethod: PaymentMethod;
   observation?: string | null;
   delivery?: {
@@ -77,39 +79,100 @@ export async function createOrderAction(
     return { ok: false, error: "Estamos fechados no momento. Tente novamente no próximo horário de atendimento." };
   }
 
+  const productIds = [...new Set(parsed.data.items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
-    where: {
-      id: { in: parsed.data.items.map((i) => i.productId) },
-      active: true,
+    where: { id: { in: productIds }, active: true },
+    include: {
+      optionGroups: {
+        where: { active: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+        include: {
+          options: { where: { active: true }, orderBy: [{ order: "asc" }, { name: "asc" }] },
+        },
+      },
     },
   });
 
-  if (products.length !== new Set(parsed.data.items.map((i) => i.productId)).size) {
+  if (products.length !== productIds.length) {
     return { ok: false, error: "Algum produto está indisponível no momento." };
   }
+  const productMap = new Map(products.map((p) => [p.id, p]));
 
-  const priceMap = new Map(products.map((p) => [p.id, p.price]));
-
+  // Preço e nome das opções são sempre recalculados no servidor: o cliente
+  // envia apenas os ids e as quantidades escolhidas.
   let total = 0;
-  const orderItems = parsed.data.items.map((i) => {
-    const unitPrice = priceMap.get(i.productId);
-    if (unitPrice === undefined) {
-      return null;
+  const orderItems: {
+    productId: string;
+    productName: string;
+    unitPrice: number;
+    quantity: number;
+    subtotal: number;
+    options: {
+      groupId: string;
+      optionId: string;
+      groupName: string;
+      optionName: string;
+      quantity: number;
+      unitPrice: number;
+    }[];
+  }[] = [];
+
+  for (const item of parsed.data.items) {
+    const product = productMap.get(item.productId);
+    if (!product) return { ok: false, error: "Algum produto está indisponível no momento." };
+
+    const selections = item.options ?? [];
+    let unitPrice = product.price;
+    const options: (typeof orderItems)[number]["options"] = [];
+
+    for (const selection of selections) {
+      const group = product.optionGroups.find((g) => g.id === selection.groupId);
+      if (!group) {
+        return { ok: false, error: `Escolha inválida para ${product.name}.` };
+      }
+      const option = group.options.find((o) => o.id === selection.optionId);
+      if (!option) {
+        return { ok: false, error: `Opção indisponível em ${product.name}.` };
+      }
+      unitPrice = roundMoney(unitPrice + option.price * selection.quantity);
+      options.push({
+        groupId: group.id,
+        optionId: option.id,
+        groupName: group.name,
+        optionName: option.name,
+        quantity: selection.quantity,
+        unitPrice: option.price,
+      });
     }
-    const subtotal = roundMoney(unitPrice * i.quantity);
+
+    for (const group of product.optionGroups) {
+      const chosen = selections
+        .filter((s) => s.groupId === group.id)
+        .reduce((sum, s) => sum + s.quantity, 0);
+      if (group.required && chosen < group.minQuantity) {
+        return {
+          ok: false,
+          error: `${product.name}: escolha ${group.minQuantity} opção(ões) em "${group.name}".`,
+        };
+      }
+      if (chosen > group.maxQuantity) {
+        return {
+          ok: false,
+          error: `${product.name}: no máximo ${group.maxQuantity} opção(ões) em "${group.name}".`,
+        };
+      }
+    }
+
+    const subtotal = roundMoney(unitPrice * item.quantity);
     total = roundMoney(total + subtotal);
-    const product = products.find((p) => p.id === i.productId)!;
-    return {
+    orderItems.push({
       productId: product.id,
       productName: product.name,
       unitPrice,
-      quantity: i.quantity,
+      quantity: item.quantity,
       subtotal,
-    };
-  });
-
-  if (orderItems.some((i) => i === null)) {
-    return { ok: false, error: "Algum produto está indisponível no momento." };
+      options,
+    });
   }
 
   const customer = await prisma.user.findUnique({
@@ -193,13 +256,25 @@ export async function createOrderAction(
         status: OrderStatus.NEW,
         deliveryMode,
         items: {
-          create: orderItems as {
-            productId: string;
-            productName: string;
-            unitPrice: number;
-            quantity: number;
-            subtotal: number;
-          }[],
+          create: orderItems.map(
+            (i): Prisma.OrderItemUncheckedCreateWithoutOrderInput => ({
+              productId: i.productId,
+              productName: i.productName,
+              unitPrice: i.unitPrice,
+              quantity: i.quantity,
+              subtotal: i.subtotal,
+              options: {
+                create: i.options.map((o) => ({
+                  groupId: o.groupId,
+                  optionId: o.optionId,
+                  groupName: o.groupName,
+                  optionName: o.optionName,
+                  quantity: o.quantity,
+                  unitPrice: o.unitPrice,
+                })),
+              },
+            })
+          ),
         },
         history: {
           create: { toStatus: OrderStatus.NEW, userId: customer.id },
@@ -481,6 +556,14 @@ export async function getOrderForReorderAction(
         unitPrice: number;
         imageUrl: string | null;
         quantity: number;
+        options: {
+          groupId: string;
+          optionId: string;
+          groupName: string;
+          optionName: string;
+          quantity: number;
+          unitPrice: number;
+        }[];
       }[];
     }
   | { ok: false; error: string }
@@ -496,6 +579,7 @@ export async function getOrderForReorderAction(
       items: {
         include: {
           product: { select: { id: true, name: true, price: true, imageUrl: true, active: true } },
+          options: true,
         },
       },
     },
@@ -510,9 +594,17 @@ export async function getOrderForReorderAction(
     .map((i) => ({
       productId: i.product!.id,
       productName: i.product!.name,
-      unitPrice: i.product!.price,
+      unitPrice: i.product!.price + i.options.reduce((s, o) => s + o.unitPrice * o.quantity, 0),
       imageUrl: i.product!.imageUrl,
       quantity: i.quantity,
+      options: i.options.map((o) => ({
+        groupId: o.groupId ?? o.groupName,
+        optionId: o.optionId ?? o.optionName,
+        groupName: o.groupName,
+        optionName: o.optionName,
+        quantity: o.quantity,
+        unitPrice: o.unitPrice,
+      })),
     }));
 
   return { ok: true, items };

@@ -22,7 +22,15 @@ export default async function ReceiptPage({
       where: { id },
       include: {
         customer: { select: { name: true, phone: true } },
-        items: { orderBy: { id: "asc" } },
+        items: {
+          orderBy: { id: "asc" },
+          include: {
+            options: {
+              orderBy: { id: "asc" },
+              select: { groupName: true, optionName: true, quantity: true, unitPrice: true },
+            },
+          },
+        },
         history: { orderBy: { createdAt: "asc" } },
         payment: true,
       },

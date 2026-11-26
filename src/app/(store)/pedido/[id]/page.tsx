@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStoreContext } from "@/lib/store-status";
+import { getStaticPixConfig } from "@/lib/pix";
 import { UserType } from "@prisma/client";
 import { OrderTrack } from "@/components/store/order-track";
 
@@ -38,6 +39,10 @@ export default async function OrderPage({
           quantity: true,
           unitPrice: true,
           subtotal: true,
+          options: {
+            orderBy: { id: "asc" },
+            select: { groupName: true, optionName: true, quantity: true, unitPrice: true },
+          },
         },
       },
       history: { orderBy: { createdAt: "desc" } },
@@ -88,6 +93,7 @@ export default async function OrderPage({
             })
           )
         : null}
+      staticPixConfigured={Boolean(await getStaticPixConfig())}
       settings={{
         storeName: context.settings.storeName,
         address: context.settings.address,
@@ -97,6 +103,7 @@ export default async function OrderPage({
         city: context.settings.city,
         state: context.settings.state,
         phone: context.settings.phone,
+        whatsapp: context.settings.whatsapp,
         prepTimeMinutes: context.settings.prepTimeMinutes,
       }}
       isCustomer={isOwner}

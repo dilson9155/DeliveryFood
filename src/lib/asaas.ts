@@ -200,7 +200,7 @@ export async function createPixPayment(
     billingType: "PIX" as AsaasBillingType,
     value: input.value,
     dueDate: input.dueDate,
-    description: (input.description ?? "Pedido Delivery Food").slice(0, 500),
+    description: (input.description ?? "Pedido RestaurantePro").slice(0, 500),
     postalService: false,
     ...(input.callbackUrl ? { callback: input.callbackUrl } : {}),
   };

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { SettingsPanel } from "@/components/admin/settings-panel";
+import { readPixSettings } from "@/lib/pix";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Configurações" };
@@ -15,6 +16,7 @@ export default async function SettingsPage() {
     <SettingsPanel
       settings={JSON.parse(JSON.stringify(settings))}
       hours={JSON.parse(JSON.stringify(hours))}
+      pix={await readPixSettings()}
     />
   );
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingBag,
+  ShoppingCart,
   UtensilsCrossed,
   FolderOpen,
   Users,
@@ -17,9 +18,6 @@ import {
   LogOut,
   Menu,
   X,
-  UtensilsCrossed as LogoIcon,
-  Bike,
-  Truck,
   CreditCard,
   ArrowLeftRight,
   BookOpen,
@@ -27,7 +25,6 @@ import {
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -85,15 +82,14 @@ export function AdminShell({
     name: user.name,
   };
 
-  const storeName = settings?.storeName ?? "Delivery Food";
-  const logoUrl = settings?.logoUrl ?? null;
+  const storeName = settings?.storeName?.trim() || "RestaurantePro";
+  const logoUrl = settings?.logoUrl?.trim() || "/icons/brand-64.png";
   const isCollapsed = collapsed === true;
 
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
-    { href: "/admin/pedidos", label: "Pedidos", icon: <ShoppingBag className="h-5 w-5" />, permission: "orders.view" },
-    { href: "/admin/delivery", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "delivery.view" },
-    { href: "/admin/entregadores", label: "Entregadores", icon: <Bike className="h-5 w-5" />, permission: "employees.manage" },
+    { href: "/admin/pdv", label: "PDV", icon: <ShoppingCart className="h-5 w-5" />, permission: "orders.manage" },
+    { href: "/admin/pedidos", label: "Comandas", icon: <ShoppingBag className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/produtos", label: "Produtos", icon: <UtensilsCrossed className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/precificacao", label: "Precificação", icon: <Tags className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/categorias", label: "Categorias", icon: <FolderOpen className="h-5 w-5" />, permission: "categories.manage" },
@@ -122,18 +118,12 @@ export function AdminShell({
       >
         {!isCollapsed && (
           <>
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt={storeName}
-                className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
-              />
-            ) : (
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
-                <LogoIcon className="h-5 w-5" />
-              </span>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoUrl}
+              alt={`Logo ${storeName}`}
+              className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold leading-tight">{storeName}</p>
               <p className="text-[11px] text-muted-foreground">Painel de controle</p>
@@ -151,22 +141,13 @@ export function AdminShell({
         )}
         {isCollapsed && (
           <div className="flex w-full items-center justify-center">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt={storeName}
-                title={storeName}
-                className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
-              />
-            ) : (
-              <span
-                title={storeName}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white"
-              >
-                <LogoIcon className="h-5 w-5" />
-              </span>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoUrl}
+              alt={`Logo ${storeName}`}
+              title={storeName}
+              className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+            />
           </div>
         )}
       </div>
@@ -319,18 +300,12 @@ export function AdminShell({
 
           {/* Nome do sistema (preenche o espaço vazio) - à esquerda em telas grandes */}
           <div className="flex min-w-0 items-center gap-2.5 lg:gap-3">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt={storeName}
-                className="hidden h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border lg:block"
-              />
-            ) : (
-              <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white shadow-sm lg:flex">
-                <Sparkles className="h-4 w-4" />
-              </span>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoUrl}
+              alt={`Logo ${storeName}`}
+              className="hidden h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border lg:block"
+            />
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-bold tracking-tight sm:text-base">
                 {storeName}
@@ -358,7 +333,7 @@ export function AdminShell({
             href="/"
             className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            Ver loja
+            Ver cardápio
           </Link>
         </header>
         <main className="flex-1 p-4 sm:p-6">{children}</main>

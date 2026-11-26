@@ -30,6 +30,7 @@ type ReceiptOrder = {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    options?: { groupName: string; optionName: string; quantity: number; unitPrice: number }[];
   }[];
   payment: {
     id: string;
@@ -179,10 +180,17 @@ export function Receipt({
           <div>
             <h2>Itens</h2>
             {order.items.map((i) => (
-              <div key={i.id} className="item-row">
-                <div className="grow">{i.productName}</div>
-                <div className="qty">{i.quantity}x</div>
-                <div className="price">{formatCurrency(i.subtotal)}</div>
+              <div key={i.id}>
+                <div className="item-row">
+                  <div className="grow">{i.productName}</div>
+                  <div className="qty">{i.quantity}x</div>
+                  <div className="price">{formatCurrency(i.subtotal)}</div>
+                </div>
+                {i.options?.map((o, idx) => (
+                  <div key={`${i.id}-${idx}`} className="small" style={{ paddingLeft: "1em" }}>
+                    {o.quantity}x {o.optionName} ({o.groupName})
+                  </div>
+                ))}
               </div>
             ))}
             <div className="small">

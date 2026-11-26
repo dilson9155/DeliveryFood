@@ -14,7 +14,7 @@ export function LoginForm() {
     <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
       <h1 className="text-xl font-bold">Bem-vindo de volta</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Entre com telefone, e-mail ou login (motoboys).
+        Entre com telefone, e-mail ou login de colaborador.
       </p>
 
       {state.error && (

@@ -58,7 +58,9 @@ const NEXT_STATUS: Partial<Record<OrderStatus, { to: OrderStatus; label: string;
 
 type AdminOrder = Order & {
   customer: { name: string; phone: string | null };
-  items: OrderItem[];
+  items: (OrderItem & {
+    options: { groupName: string; optionName: string; quantity: number; unitPrice: number }[];
+  })[];
   payment: Payment | null;
   discountReason: string | null;
 };
@@ -637,10 +639,21 @@ function OrderDetail({
               </span>
             </div>
             {order.items.map((i) => (
-              <div key={i.id} className="flex items-center justify-between py-1 text-sm">
-                <span className="flex-1">{i.quantity}× {i.productName}</span>
-                <span className="text-muted-foreground">{formatCurrency(i.unitPrice)}</span>
-                <span className="w-20 text-right font-medium">{formatCurrency(i.subtotal)}</span>
+              <div key={i.id} className="py-1 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="flex-1">{i.quantity}× {i.productName}</span>
+                  <span className="text-muted-foreground">{formatCurrency(i.unitPrice)}</span>
+                  <span className="w-20 text-right font-medium">{formatCurrency(i.subtotal)}</span>
+                </div>
+                {i.options?.length > 0 && (
+                  <div className="mt-0.5 space-y-0.5 pl-3 text-xs text-brand-700">
+                    {i.options.map((o, idx) => (
+                      <div key={`${i.id}-${idx}`}>
+                        {o.quantity}× {o.optionName} · {o.groupName}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div className="mt-2 flex items-center justify-between border-t border-border pt-3">

@@ -14,7 +14,18 @@ export default async function OrdersPage() {
     ],
     include: {
       customer: { select: { name: true, phone: true } },
-      items: { select: { id: true, productName: true, quantity: true, unitPrice: true, subtotal: true } },
+      items: {
+        select: {
+          id: true,
+          productName: true,
+          quantity: true,
+          unitPrice: true,
+          subtotal: true,
+          options: {
+            select: { groupName: true, optionName: true, quantity: true, unitPrice: true },
+          },
+        },
+      },
       payment: true,
     },
     take: 300,

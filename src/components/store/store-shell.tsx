@@ -23,6 +23,7 @@ import {
 import { useCart, cartSubtotal } from "@/stores/cart";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
+import { cartItemKey, describeOptions } from "@/lib/product-options";
 import { logoutAction } from "@/app/actions/auth";
 
 type StoreUser = {
@@ -75,6 +76,7 @@ export function StoreShell({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const count = items.reduce((s, i) => s + i.quantity, 0);
+  const brandLogo = settings.logoUrl?.trim() || "/icons/brand-64.png";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -82,18 +84,12 @@ export function StoreShell({
         <div className="container-store flex h-16 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 min-w-0">
-              {settings.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={settings.logoUrl}
-                  alt={settings.storeName}
-                  className="h-10 w-10 rounded-xl object-cover"
-                />
-              ) : (
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-                  <UtensilsCrossed className="h-5 w-5" />
-                </span>
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={brandLogo}
+                alt={`Logo ${settings.storeName}`}
+                className="h-10 w-10 rounded-xl object-cover"
+              />
               <span className="truncate text-base font-bold text-foreground">
                 {settings.storeName}
               </span>
@@ -379,7 +375,7 @@ function CartDrawer({
             <ul className="space-y-3">
               {items.map((item) => (
                 <li
-                  key={item.productId}
+                  key={cartItemKey(item.productId, item.options)}
                   className="flex gap-3 rounded-2xl border border-border bg-card p-3"
                 >
                   {item.imageUrl ? (
@@ -400,7 +396,7 @@ function CartDrawer({
                         {item.name}
                       </p>
                       <button
-                        onClick={() => removeItem(item.productId)}
+                        onClick={() => removeItem(cartItemKey(item.productId, item.options))}
                         className="text-muted-foreground hover:text-danger"
                         aria-label={`Remover ${item.name}`}
                       >
@@ -410,9 +406,16 @@ function CartDrawer({
                     <p className="text-sm text-muted-foreground">
                       {formatCurrency(item.unitPrice)}
                     </p>
+                    {item.options && item.options.length > 0 && (
+                      <p className="mt-1 text-xs leading-snug text-brand-700">
+                        {describeOptions(item.options)}
+                      </p>
+                    )}
                     <div className="mt-1.5 flex items-center gap-2">
                       <button
-                        onClick={() => setQuantity(item.productId, item.quantity - 1)}
+                        onClick={() =>
+                          setQuantity(cartItemKey(item.productId, item.options), item.quantity - 1)
+                        }
                         className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
                         aria-label="Diminuir"
                       >
@@ -423,7 +426,7 @@ function CartDrawer({
                       </span>
                       <button
                         onClick={() =>
-                          setQuantity(item.productId, item.quantity + 1)
+                          setQuantity(cartItemKey(item.productId, item.options), item.quantity + 1)
                         }
                         className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
                         aria-label="Aumentar"

@@ -89,6 +89,7 @@ function OrderRow({ order: o }: { order: MyOrder }) {
           unitPrice: item.unitPrice,
           imageUrl: item.imageUrl,
           quantity: item.quantity,
+          options: item.options,
         });
       }
       const skipped = o.items.length - res.items.length;

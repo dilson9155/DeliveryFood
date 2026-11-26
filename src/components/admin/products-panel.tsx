@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Plus, Pencil, Star, Power, PowerOff, ImageOff, Search, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, Star, Power, PowerOff, ImageOff, Search, X, ListChecks } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,13 @@ export function ProductsPanel({
                     <Badge>{p.category?.name ?? "Sem categoria"}</Badge>
                   </div>
                   <div className="mt-2 flex items-center gap-1">
+                    <Link
+                      href={`/admin/produtos/${p.id}/opcoes`}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                      title="Configurar opções do produto"
+                    >
+                      <ListChecks className="h-4 w-4" /> Opções
+                    </Link>
                     <Button size="sm" variant="ghost" onClick={() => { setEditing(p); setCreating(false); }}>
                       <Pencil className="h-4 w-4" />
                     </Button>

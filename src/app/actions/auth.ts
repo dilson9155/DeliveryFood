@@ -54,7 +54,7 @@ export async function loginAction(
 
   let target = "/";
   if (user?.userType === "EMPLOYEE") {
-    target = user.role === "MOTOBOY" ? "/entregador" : "/admin/dashboard";
+    target = "/admin/dashboard";
   }
   redirect(target);
 }

@@ -2,21 +2,24 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { cartItemKey, type OptionChoice } from "@/lib/product-options";
 
 export type CartItem = {
   productId: string;
   name: string;
+  /** Preço unitário já incluindo os adicionais das opções escolhidas. */
   unitPrice: number;
   quantity: number;
   imageUrl?: string | null;
   maxQuantity?: number;
+  options?: OptionChoice[];
 };
 
 type CartState = {
   items: CartItem[];
   addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
-  removeItem: (productId: string) => void;
-  setQuantity: (productId: string, quantity: number) => void;
+  removeItem: (key: string) => void;
+  setQuantity: (key: string, quantity: number) => void;
   clear: () => void;
 };
 
@@ -26,11 +29,12 @@ export const useCart = create<CartState>()(
       items: [],
       addItem: (item) =>
         set((state) => {
-          const existing = state.items.find((i) => i.productId === item.productId);
+          const key = cartItemKey(item.productId, item.options);
+          const existing = state.items.find((i) => cartItemKey(i.productId, i.options) === key);
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.productId === item.productId
+                cartItemKey(i.productId, i.options) === key
                   ? { ...i, quantity: i.quantity + (item.quantity ?? 1) }
                   : i
               ),
@@ -38,17 +42,17 @@ export const useCart = create<CartState>()(
           }
           return { items: [...state.items, { ...item, quantity: item.quantity ?? 1 }] };
         }),
-      removeItem: (productId) =>
+      removeItem: (key) =>
         set((state) => ({
-          items: state.items.filter((i) => i.productId !== productId),
+          items: state.items.filter((i) => cartItemKey(i.productId, i.options) !== key),
         })),
-      setQuantity: (productId, quantity) =>
+      setQuantity: (key, quantity) =>
         set((state) => ({
           items:
             quantity <= 0
-              ? state.items.filter((i) => i.productId !== productId)
+              ? state.items.filter((i) => cartItemKey(i.productId, i.options) !== key)
               : state.items.map((i) =>
-                  i.productId === productId ? { ...i, quantity } : i
+                  cartItemKey(i.productId, i.options) === key ? { ...i, quantity } : i
                 ),
         })),
       clear: () => set({ items: [] }),

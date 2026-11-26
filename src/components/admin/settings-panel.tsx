@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Save, Store, Clock, Power, MoveRight, Upload, Trash2, Printer, AlertTriangle, Loader2 } from "lucide-react";
+import { Save, Store, Clock, Power, MoveRight, Upload, Trash2, Printer, AlertTriangle, Loader2, QrCode } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/form";
+import { Input, Label, Select } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
 import { AlertBannerProvider, useAlertBanner } from "@/components/ui/alert-banner";
 import {
@@ -13,6 +13,8 @@ import {
   toggleOpenOverrideAction,
 } from "@/app/actions/admin";
 import { cleanTestDataAction } from "@/app/actions/admin-clean";
+import { savePixSettingsAction } from "@/app/actions/pix-settings";
+import type { PixKeyType, PixSettingsView } from "@/lib/pix";
 import { TEMPLATES, DEFAULT_TEMPLATE_ID } from "@/lib/print-templates";
 
 const DAYS = [
@@ -56,13 +58,15 @@ type HourRow = {
 export function SettingsPanel({
   settings,
   hours,
+  pix,
 }: {
   settings: SettingsData | null;
   hours: HourRow[];
+  pix: PixSettingsView;
 }) {
   return (
     <AlertBannerProvider>
-      <SettingsPanelInner settings={settings} hours={hours} />
+      <SettingsPanelInner settings={settings} hours={hours} pix={pix} />
     </AlertBannerProvider>
   );
 }
@@ -70,9 +74,11 @@ export function SettingsPanel({
 function SettingsPanelInner({
   settings: initial,
   hours: initialHours,
+  pix: initialPix,
 }: {
   settings: SettingsData | null;
   hours: HourRow[];
+  pix: PixSettingsView;
 }) {
   const { show } = useToast();
   const banner = useAlertBanner();
@@ -81,6 +87,14 @@ function SettingsPanelInner({
   const [cleanConfirm, setCleanConfirm] = useState("");
   const [keepLast, setKeepLast] = useState("20");
   const [forceAll, setForceAll] = useState(false);
+  const [savingPix, startSavingPix] = useTransition();
+  const [pixForm, setPixForm] = useState({
+    key: initialPix.key,
+    keyType: initialPix.keyType,
+    receiverName: initialPix.receiverName,
+    city: initialPix.city,
+    discountPercent: String(initialPix.discountPercent),
+  });
 
   const [form, setForm] = useState({
     storeName: initial?.storeName ?? "Meu Estabelecimento",
@@ -223,6 +237,29 @@ function SettingsPanelInner({
       const res = await toggleOpenOverrideAction(value);
       if (res.ok) show("success", "Estado do estabelecimento atualizado.");
       else show("error", res.error);
+    });
+  }
+
+  function savePix() {
+    startSavingPix(async () => {
+      const res = await savePixSettingsAction({
+        ...pixForm,
+        keyType: pixForm.keyType as PixKeyType,
+        discountPercent: Number(pixForm.discountPercent) || 0,
+      });
+      if (!res.ok) {
+        show("error", res.error);
+        return;
+      }
+      show("success", "Chaves PIX salvas no .env do servidor.");
+      if (res.needsRestart) {
+        banner.show({
+          type: "warning",
+          title: "Reinicie o servidor",
+          message: "Em produção, as novas variáveis só valem após reiniciar a aplicação.",
+          duration: 8000,
+        });
+      }
     });
   }
 
@@ -419,6 +456,90 @@ function SettingsPanelInner({
           </div>
           <Button onClick={saveOverride} size="lg" variant="outline">
             <Save className="h-4 w-4" /> Aplicar
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center gap-2">
+          <QrCode className="h-4 w-4 text-muted-foreground" />
+          <CardTitle>PIX estático</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-xs text-brand-900">
+            {initialPix.configured ? (
+              <>Chave atual: <strong>{initialPix.key}</strong> ({initialPix.keyType}). O QR Code é gerado automaticamente no checkout.</>
+            ) : (
+              <>Nenhuma chave configurada. Cadastre uma chave para habilitar o pagamento por PIX na loja.</>
+            )}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="pixKeyType">Tipo de chave</Label>
+              <Select
+                id="pixKeyType"
+                value={pixForm.keyType}
+                onChange={(e) => setPixForm((f) => ({ ...f, keyType: e.target.value as PixKeyType }))}
+              >
+                <option value="EMAIL">E-mail</option>
+                <option value="CPF">CPF</option>
+                <option value="CNPJ">CNPJ</option>
+                <option value="PHONE">Celular</option>
+                <option value="RANDOM">Chave aleatória</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="pixKey">Chave PIX</Label>
+              <Input
+                id="pixKey"
+                value={pixForm.key}
+                onChange={(e) => setPixForm((f) => ({ ...f, key: e.target.value }))}
+                placeholder={
+                  pixForm.keyType === "EMAIL" ? "contato@restaurante.com.br" : "Informe a chave"
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="pixReceiver">Nome do recebedor</Label>
+              <Input
+                id="pixReceiver"
+                value={pixForm.receiverName}
+                onChange={(e) => setPixForm((f) => ({ ...f, receiverName: e.target.value }))}
+                placeholder="RESTAURANTEPRO"
+                maxLength={40}
+              />
+            </div>
+            <div>
+              <Label htmlFor="pixCity">Cidade</Label>
+              <Input
+                id="pixCity"
+                value={pixForm.city}
+                onChange={(e) => setPixForm((f) => ({ ...f, city: e.target.value }))}
+                placeholder="SAO PAULO"
+                maxLength={40}
+              />
+            </div>
+            <div>
+              <Label htmlFor="pixDiscount">Desconto no PIX (%)</Label>
+              <Input
+                id="pixDiscount"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={pixForm.discountPercent}
+                onChange={(e) => setPixForm((f) => ({ ...f, discountPercent: e.target.value }))}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ao salvar, as variáveis <code>PIX_KEY</code>, <code>PIX_KEY_TYPE</code>, <code>PIX_RECEIVER_NAME</code>, <code>PIX_CITY</code> e <code>PIX_DISCOUNT_PERCENT</code> são gravadas no arquivo <code>.env</code>.
+          </p>
+        </CardContent>
+        <CardContent className="border-t border-border">
+          <Button onClick={savePix} size="lg" disabled={savingPix}>
+            {savingPix ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salvar chaves PIX
           </Button>
         </CardContent>
       </Card>

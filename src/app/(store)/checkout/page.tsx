@@ -4,17 +4,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStoreContext } from "@/lib/store-status";
 import { CheckoutForm } from "@/components/store/checkout-form";
-import { getDeliverySettings } from "@/lib/delivery";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Finalizar pedido" };
 
 export default async function CheckoutPage() {
-  const [context, session, deliverySettings] = await Promise.all([
-    getStoreContext(),
-    auth(),
-    getDeliverySettings(),
-  ]);
+  const [context, session] = await Promise.all([getStoreContext(), auth()]);
 
   if (!session?.user) {
     redirect("/login?callbackUrl=/checkout");
@@ -58,12 +53,13 @@ export default async function CheckoutPage() {
         state: context.settings.state,
         phone: context.settings.phone,
         prepTimeMinutes: context.settings.prepTimeMinutes,
-        deliveryEnabled: deliverySettings.deliveryEnabled,
-        baseFee: deliverySettings.baseFee,
-        feePerKm: deliverySettings.feePerKm,
-        minFee: deliverySettings.minFee,
-        maxFee: deliverySettings.maxFee,
-        maxDistanceKm: deliverySettings.maxDistanceKm,
+        // Restaurante: pedidos online são sempre para retirada no balcão.
+        deliveryEnabled: false,
+        baseFee: 0,
+        feePerKm: 0,
+        minFee: 0,
+        maxFee: 0,
+        maxDistanceKm: 0,
       }}
       hours={context.hours.map((h) => ({
         dayOfWeek: h.dayOfWeek,
@@ -72,7 +68,7 @@ export default async function CheckoutPage() {
         closeTime: h.closeTime,
       }))}
       savedAddresses={JSON.parse(JSON.stringify(savedAddresses))}
-      deliveryEnabled={deliverySettings.deliveryEnabled}
+      deliveryEnabled={false}
     />
   );
 }

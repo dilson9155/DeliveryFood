@@ -9,14 +9,21 @@ import {
   getPayment,
   refundPayment,
   isAsaasConfigured,
-  type AsaasPayment,
 } from "@/lib/asaas";
 import { PaymentProvider, PaymentProviderStatus } from "@prisma/client";
 import { roundMoney } from "@/lib/format";
+import { buildStaticPixPayload, getStaticPixConfig } from "@/lib/pix";
 
 type ActionResult<T> =
   | ({ ok: true } & T)
   | { ok: false; error: string };
+
+type StaticPixCreated = {
+  intentId: string;
+  qrText: string;
+  amount: number;
+  discount: number;
+};
 
 type PixCreated = {
   paymentId: string;
@@ -37,6 +44,168 @@ function resolvePixExpiry(asaasExpiresAt: string | null | undefined): Date {
   const parsed = new Date(asaasExpiresAt);
   if (Number.isNaN(parsed.getTime())) return max;
   return parsed.getTime() > max.getTime() ? max : parsed;
+}
+
+/**
+ * PIX estático (sem gateway). Gera o BR Code a partir da chave configurada
+ * em PIX_KEY e grava o copia-e-cola no PaymentIntent. A confirmação é manual,
+ * feita pelo establishment no painel admin.
+ */
+export async function createStaticPixForOrderAction(
+  orderId: string
+): Promise<ActionResult<StaticPixCreated>> {
+  const session = await auth();
+  if (!session?.user || session.user.userType !== "CUSTOMER") {
+    return { ok: false, error: "Faça login para pagar." };
+  }
+
+  const config = await getStaticPixConfig();
+  if (!config) {
+    return { ok: false, error: "PIX indisponível no momento." };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      number: true,
+      customerId: true,
+      total: true,
+      paymentMethod: true,
+      paymentStatus: true,
+      paymentIntent: true,
+    },
+  });
+  if (!order || order.customerId !== session.user.id) {
+    return { ok: false, error: "Pedido não encontrado." };
+  }
+  if (order.paymentMethod !== "PIX") {
+    return { ok: false, error: "Este pedido não foi feito com PIX." };
+  }
+  if (order.paymentStatus === "CONFIRMED") {
+    return { ok: false, error: "Este pedido já foi pago." };
+  }
+
+  const existing = order.paymentIntent;
+  if (
+    existing?.provider === PaymentProvider.MANUAL &&
+    existing.status === PaymentProviderStatus.PENDING &&
+    existing.qrCodeText
+  ) {
+    return {
+      ok: true,
+      intentId: existing.id,
+      qrText: existing.qrCodeText,
+      amount: existing.amount,
+      discount: roundMoney(Math.max(0, order.total - existing.amount)),
+    };
+  }
+
+  const settings = await prisma.settings.findUnique({
+    where: { id: "default" },
+    select: { storeName: true, city: true },
+  });
+
+  const discount =
+    config.discountPercent > 0
+      ? roundMoney((order.total * config.discountPercent) / 100)
+      : 0;
+  const amount = roundMoney(order.total - discount);
+
+  const qrText = buildStaticPixPayload({
+    key: config.key,
+    keyType: config.keyType,
+    receiverName: config.receiverName || settings?.storeName || "LOJA",
+    city: config.city || settings?.city || "BRASIL",
+    amount,
+    txid: `PEDIDO${String(order.number).padStart(4, "0")}`,
+  });
+
+  // Mantém o valor do pedido coerente com o PIX gerado (inclusive no recibo).
+  if (discount > 0) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { total: amount, discount, discountReason: "Desconto PIX" },
+    });
+    await prisma.payment.update({
+      where: { orderId: order.id },
+      data: { amount },
+    });
+  }
+
+  const intent = existing
+    ? await prisma.paymentIntent.update({
+        where: { id: existing.id },
+        data: {
+          provider: PaymentProvider.MANUAL,
+          providerPaymentId: null,
+          status: PaymentProviderStatus.PENDING,
+          method: "PIX",
+          amount,
+          qrCodeText: qrText,
+          qrCodeBase64: null,
+          pixExpiresAt: null,
+          rawLastResponse: { type: "STATIC_PIX", discount },
+        },
+      })
+    : await prisma.paymentIntent.create({
+        data: {
+          orderId: order.id,
+          provider: PaymentProvider.MANUAL,
+          status: PaymentProviderStatus.PENDING,
+          method: "PIX",
+          amount,
+          qrCodeText: qrText,
+          rawLastResponse: { type: "STATIC_PIX", discount },
+        },
+      });
+
+  await prisma.paymentEvent.create({
+    data: {
+      intentId: intent.id,
+      type: "pix.static.created",
+      rawPayload: { payload: qrText, amount, discount },
+    },
+  });
+
+  return { ok: true, intentId: intent.id, qrText, amount, discount };
+}
+
+/** Cliente avisa que já pagou; a confirmação final continua com o estabelecimento. */
+export async function notifyStaticPixPaymentAction(
+  orderId: string
+): Promise<ActionResult<unknown>> {
+  const session = await auth();
+  if (!session?.user || session.user.userType !== "CUSTOMER") {
+    return { ok: false, error: "Faça login para avisar sobre o pagamento." };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      number: true,
+      customerId: true,
+      customer: { select: { name: true } },
+      paymentIntent: { select: { provider: true } },
+    },
+  });
+  if (!order || order.customerId !== session.user.id) {
+    return { ok: false, error: "Pedido não encontrado." };
+  }
+  if (order.paymentIntent?.provider !== PaymentProvider.MANUAL) {
+    return { ok: false, error: "Este pedido não usa PIX estático." };
+  }
+
+  await prisma.notification.create({
+    data: {
+      type: "PIX_PAYMENT_NOTICE",
+      title: `Pagamento PIX informado · pedido #${String(order.number).padStart(4, "0")}`,
+      body: `${order.customer.name} informou que já fez o PIX. Confira e confirme o recebimento no painel.`,
+      link: "/admin/pedidos",
+    },
+  });
+
+  return { ok: true };
 }
 
 /** Cria um PIX no Asaas para o pedido */
@@ -193,7 +362,34 @@ export async function refreshPixStatusAction(
   const intent = await prisma.paymentIntent.findUnique({
     where: { orderId },
   });
-  if (!intent || !intent.providerPaymentId) {
+  if (!intent) {
+    return { ok: false, error: "PIX não gerado." };
+  }
+
+  // PIX estático não tem webhook: o status muda quando o admin confirma.
+  if (intent.provider === PaymentProvider.MANUAL) {
+    const paid = intent.status === PaymentProviderStatus.PAID;
+    if (paid) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: "CONFIRMED" },
+      });
+      await prisma.payment.upsert({
+        where: { orderId },
+        update: { status: "CONFIRMED", confirmedAt: new Date() },
+        create: {
+          orderId,
+          method: "PIX",
+          status: "CONFIRMED",
+          amount: intent.amount,
+          confirmedAt: new Date(),
+        },
+      });
+    }
+    return { ok: true, status: paid ? "PAID" : "PENDING", paid };
+  }
+
+  if (!intent.providerPaymentId) {
     return { ok: false, error: "PIX não gerado." };
   }
 

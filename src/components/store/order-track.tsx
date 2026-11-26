@@ -36,6 +36,7 @@ import {
 import { TrackingMap } from "@/components/delivery/TrackingMap";
 import { PixPayment } from "@/components/store/pix-payment";
 import type { LatLng } from "@/lib/geo";
+import { describeOptions } from "@/lib/product-options";
 
 type OrderData = {
   id: string;
@@ -57,6 +58,7 @@ type OrderData = {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    options?: { groupName: string; optionName: string; quantity: number; unitPrice: number }[];
   }[];
   history: { id: string; fromStatus: string | null; toStatus: string; createdAt: string }[];
   payment: {
@@ -92,6 +94,7 @@ type TrackOrder = Omit<OrderData, "status" | "paymentStatus"> & {
 
 type PaymentIntentData = {
   id: string;
+  provider: "MANUAL" | "ASAAS" | "PAGBANK";
   status: string;
   qrCodeBase64: string | null;
   qrCodeText: string | null;
@@ -103,12 +106,14 @@ export function OrderTrack({
   order: initial,
   delivery: initialDelivery,
   paymentIntent: initialIntent,
+  staticPixConfigured,
   settings,
   isCustomer,
 }: {
   order: TrackOrder;
   delivery: DeliveryData | null;
   paymentIntent: PaymentIntentData;
+  staticPixConfigured: boolean;
   settings: {
     storeName: string;
     address: string | null;
@@ -118,6 +123,7 @@ export function OrderTrack({
     city: string | null;
     state: string | null;
     phone: string | null;
+    whatsapp: string | null;
     prepTimeMinutes: number | null;
   };
   isCustomer: boolean;
@@ -244,6 +250,9 @@ export function OrderTrack({
                       ? "PENDING"
                       : null
             }
+            provider={initialIntent?.provider ?? null}
+            staticPixConfigured={staticPixConfigured}
+            whatsapp={settings.whatsapp}
           />
         </div>
       )}
@@ -324,6 +333,11 @@ export function OrderTrack({
                 <li key={i.id} className="flex items-start justify-between gap-2 text-sm">
                   <span>
                     <span className="font-medium">{i.quantity}× {i.productName}</span>
+                    {i.options && i.options.length > 0 && (
+                      <span className="mt-0.5 block text-xs leading-snug text-brand-700">
+                        {describeOptions(i.options)}
+                      </span>
+                    )}
                     <span className="mt-0.5 block text-xs text-muted-foreground">
                       {formatCurrency(i.unitPrice)} cada
                     </span>

@@ -3,13 +3,26 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, CheckCircle2, QrCode, RefreshCw, Loader2, AlertCircle, Clock } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  Copy,
+  CheckCircle2,
+  QrCode,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  Clock,
+  MessageCircle,
+  BellRing,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/format";
 import {
   createPixForOrderAction,
+  createStaticPixForOrderAction,
+  notifyStaticPixPaymentAction,
   refreshPixStatusAction,
 } from "@/app/actions/payments";
 
@@ -20,6 +33,10 @@ type PixPaymentProps = {
   initialQrText: string | null;
   initialPixExpiresAt: string | null;
   initialStatus: "PENDING" | "PAID" | "EXPIRED" | "DECLINED" | null;
+  provider: "MANUAL" | "ASAAS" | "PAGBANK" | null;
+  /** PIX estático configurado no painel; usado quando ainda não há PaymentIntent. */
+  staticPixConfigured?: boolean;
+  whatsapp?: string | null;
 };
 
 type Status = "idle" | "creating" | "pending" | "paid" | "expired" | "error";
@@ -33,11 +50,15 @@ export function PixPayment({
   initialQrText,
   initialPixExpiresAt,
   initialStatus,
+  provider,
+  staticPixConfigured,
+  whatsapp,
 }: PixPaymentProps) {
   const router = useRouter();
   const { show } = useToast();
+  const isStatic = provider === "MANUAL" || (provider === null && staticPixConfigured === true);
   const [status, setStatus] = useState<Status>(
-    initialQrBase64 ? (initialStatus === "PAID" ? "paid" : "pending") : "idle"
+    initialQrBase64 || initialQrText ? (initialStatus === "PAID" ? "paid" : "pending") : "idle"
   );
   const [errorInfo, setErrorInfo] = useState<ErrorInfo | null>(null);
   const [qrBase64, setQrBase64] = useState(initialQrBase64);
@@ -45,12 +66,14 @@ export function PixPayment({
   const [expiresAt, setExpiresAt] = useState(
     initialPixExpiresAt ? new Date(initialPixExpiresAt) : null
   );
+  const [displayAmount, setDisplayAmount] = useState(amount);
   const [countdown, setCountdown] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isNotifying, startNotify] = useTransition();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Contador regressivo
+  // Contador regressivo (somente PIX via Asaas, que tem validade)
   useEffect(() => {
     if (!expiresAt) return;
     const update = () => {
@@ -61,12 +84,10 @@ export function PixPayment({
         return;
       }
       const totalSec = Math.floor(ms / 1000);
-      const days = Math.floor(totalSec / 86400);
-      const hours = Math.floor((totalSec % 86400) / 3600);
+      const hours = Math.floor(totalSec / 3600);
       const minutes = Math.floor((totalSec % 3600) / 60);
       const seconds = totalSec % 60;
-      if (days > 0) setCountdown(`${days}d ${hours}h`);
-      else if (hours > 0)
+      if (hours > 0)
         setCountdown(`${hours}h ${String(minutes).padStart(2, "0")}min`);
       else
         setCountdown(
@@ -78,7 +99,7 @@ export function PixPayment({
     return () => clearInterval(t);
   }, [expiresAt]);
 
-  // Polling do status a cada 5s
+  // Polling do status (no PIX estático a confirmação é feita no painel admin)
   useEffect(() => {
     if (status !== "pending") {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -91,7 +112,7 @@ export function PixPayment({
         show("success", "Pagamento confirmado! 🎉");
         router.refresh();
       }
-    }, 5000);
+    }, 6000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -99,7 +120,9 @@ export function PixPayment({
 
   function handleCreate() {
     startTransition(async () => {
-      const res = await createPixForOrderAction(orderId);
+      const res = isStatic
+        ? await createStaticPixForOrderAction(orderId)
+        : await createPixForOrderAction(orderId);
       if (!res.ok) {
         show("error", res.error);
         setErrorInfo({
@@ -109,13 +132,14 @@ export function PixPayment({
         setStatus("error");
         return;
       }
-      // Exibe o QR imediatamente. router.refresh() só re-renderiza os
-      // componentes do servidor e NÃO reinicia o estado deste componente,
-      // então sem estes set a tela continuaria em "idle".
+      // O QR é renderizado no cliente a partir do copia-e-cola (BR Code).
       setErrorInfo(null);
-      setQrBase64(res.qrBase64);
+      setQrBase64("qrBase64" in res ? res.qrBase64 : null);
       setQrText(res.qrText);
-      setExpiresAt(res.expiresAt ? new Date(res.expiresAt) : null);
+      setDisplayAmount("amount" in res ? res.amount : amount);
+      setExpiresAt(
+        "expiresAt" in res && res.expiresAt ? new Date(res.expiresAt) : null
+      );
       setCopied(false);
       setStatus("pending");
       router.refresh();
@@ -124,12 +148,36 @@ export function PixPayment({
 
   function copyPix() {
     if (!qrText) return;
-    navigator.clipboard.writeText(qrText).then(() => {
-      setCopied(true);
-      show("success", "Código PIX copiado");
-      setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(qrText)
+      .then(() => {
+        setCopied(true);
+        show("success", "Código PIX copiado");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => show("error", "Não foi possível copiar. Selecione o código manualmente."));
+  }
+
+  function notifyPaid() {
+    startNotify(async () => {
+      const res = await notifyStaticPixPaymentAction(orderId);
+      if (!res.ok) {
+        show("error", res.error);
+        return;
+      }
+      show("success", "Avisamos o estabelecimento. Confira com o balcão antes de retirar.");
     });
   }
+
+  const waLink = (() => {
+    const digits = (whatsapp ?? "").replace(/\D/g, "");
+    if (digits.length < 10) return null;
+    const phone = digits.startsWith("55") ? digits : `55${digits}`;
+    const text = encodeURIComponent(
+      `Olá! Já paguei o PIX do pedido #${orderId.slice(0, 8).toUpperCase()}.`
+    );
+    return `https://wa.me/${phone}?text=${text}`;
+  })();
 
   // Estado: precisa gerar o PIX
   if (status === "idle") {
@@ -140,8 +188,9 @@ export function PixPayment({
           Pagamento via PIX
         </h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Pague com PIX para confirmar seu pedido instantaneamente.
-          Valor: <strong>{formatCurrency(amount)}</strong>
+          {isStatic
+            ? `Gere seu QR Code e pague ${formatCurrency(amount)}. A confirmação é feita no balcão.`
+            : `Pague com PIX para confirmar seu pedido instantaneamente. Valor: ${formatCurrency(amount)}`}
         </p>
         <Button onClick={handleCreate} disabled={isPending} className="w-full" size="lg">
           {isPending ? (
@@ -168,10 +217,7 @@ export function PixPayment({
         </p>
         {errorInfo?.message?.includes("CPF/CNPJ") && (
           <p className="mb-3 text-sm font-medium">
-            <Link
-              href="/meus-dados"
-              className="text-brand-600 hover:underline"
-            >
+            <Link href="/meus-dados" className="text-brand-600 hover:underline">
               → Atualizar meus dados (CPF/CNPJ)
             </Link>
           </p>
@@ -194,8 +240,8 @@ export function PixPayment({
           Pagamento confirmado
         </h2>
         <p className="text-sm text-muted-foreground">
-          Recebemos seu pagamento de <strong>{formatCurrency(amount)}</strong>.
-          Seu pedido já está sendo preparado pela loja.
+          Recebemos seu pagamento de <strong>{formatCurrency(displayAmount)}</strong>.
+          Seu pedido já está sendo preparado.
         </p>
       </Card>
     );
@@ -210,19 +256,18 @@ export function PixPayment({
           Pague com PIX
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Escaneie o QR Code ou copie o código abaixo
+          {isStatic
+            ? "Escaneie o QR Code ou copie o código. Válido até o pagamento."
+            : "Escaneie o QR Code ou copie o código abaixo"}
         </p>
       </div>
 
       <div className="flex flex-col items-center gap-4 p-5 sm:flex-row sm:items-start">
-        {qrBase64 && (
+        {qrText ? (
           <div className="flex shrink-0 flex-col items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`data:image/png;base64,${qrBase64}`}
-              alt="QR Code PIX"
-              className="h-48 w-48 rounded-xl border border-border bg-white p-2"
-            />
+            <div className="rounded-xl border border-border bg-white p-3">
+              <QRCodeSVG value={qrText} size={168} level="M" marginSize={0} />
+            </div>
             {expiresAt && status !== "expired" && (
               <span className="flex items-center gap-1 text-xs font-medium text-warning">
                 <Clock className="h-3 w-3" />
@@ -236,13 +281,22 @@ export function PixPayment({
               </span>
             )}
           </div>
-        )}
+        ) : qrBase64 ? (
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`data:image/png;base64,${qrBase64}`}
+              alt="QR Code PIX"
+              className="h-48 w-48 rounded-xl border border-border bg-white p-2"
+            />
+          </div>
+        ) : null}
 
         <div className="flex w-full flex-1 flex-col gap-3">
           <div className="rounded-xl border border-border bg-muted/40 p-3">
-            <p className="text-xs text-muted-foreground">Valor</p>
+            <p className="text-xs text-muted-foreground">Valor do PIX</p>
             <p className="text-2xl font-extrabold text-brand-700">
-              {formatCurrency(amount)}
+              {formatCurrency(displayAmount)}
             </p>
           </div>
 
@@ -269,9 +323,42 @@ export function PixPayment({
             </div>
           </div>
 
-          <div className="rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
-            <strong>Aguardando pagamento.</strong> Atualizamos o status automaticamente assim que o pagamento for confirmado.
-          </div>
+          {isStatic ? (
+            <div className="rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
+              <strong>Pagamento confirmado no balcão.</strong> Após pagar, avise a loja
+              para liberarmos seu pedido.
+            </div>
+          ) : (
+            <div className="rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
+              <strong>Aguardando pagamento.</strong> Atualizamos o status automaticamente
+              assim que o pagamento for confirmado.
+            </div>
+          )}
+
+          {isStatic && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                onClick={notifyPaid}
+                disabled={isNotifying}
+                variant="outline"
+                className="flex-1"
+              >
+                <BellRing className="h-4 w-4" />
+                {isNotifying ? "Enviando..." : "Já paguei"}
+              </Button>
+              {waLink && (
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Avisar no WhatsApp
+                </a>
+              )}
+            </div>
+          )}
 
           {status === "expired" && (
             <Button onClick={handleCreate} disabled={isPending} variant="outline">

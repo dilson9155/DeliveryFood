@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty";
 import { formatCurrency } from "@/lib/format";
+import { cartItemKey, describeOptions, type OptionSelection } from "@/lib/product-options";
 import { createOrderAction } from "@/app/actions/orders";
 import { updateProfileAction } from "@/app/actions/profile";
 import {
@@ -36,9 +37,9 @@ import type { PaymentMethod } from "@prisma/client";
 type PaymentOption = { value: PaymentMethod; label: string; icon: React.ReactNode; note: string };
 
 const PAYMENT_OPTIONS: PaymentOption[] = [
-  { value: "CASH", label: "Dinheiro", icon: <Banknote className="h-5 w-5" />, note: "Pague na entrega" },
-  { value: "CARD", label: "Cartão", icon: <CreditCard className="h-5 w-5" />, note: "Débito ou crédito na entrega" },
-  { value: "PIX", label: "PIX", icon: <QrCode className="h-5 w-5" />, note: "Pague na entrega" },
+  { value: "CASH", label: "Dinheiro", icon: <Banknote className="h-5 w-5" />, note: "Pague na retirada" },
+  { value: "CARD", label: "Cartão", icon: <CreditCard className="h-5 w-5" />, note: "Débito ou crédito na retirada" },
+  { value: "PIX", label: "PIX", icon: <QrCode className="h-5 w-5" />, note: "QR Code gerado na hora" },
 ];
 
 type Address = {
@@ -168,7 +169,7 @@ export function CheckoutForm({
     return () => {
       cancelled = true;
     };
-  }, [mode, effectiveAddress]); // eslint-disable-line
+  }, [mode, effectiveAddress]);
 
   const total = useMemo(() => {
     if (mode === "DELIVERY" && quote?.ok) return subtotal + quote.fee;
@@ -231,7 +232,17 @@ export function CheckoutForm({
         }
 
         const result = await createOrderAction({
-          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            options: (i.options ?? []).map(
+              ({ groupId, optionId, quantity }): OptionSelection => ({
+                groupId,
+                optionId,
+                quantity,
+              })
+            ),
+          })),
           paymentMethod,
           observation: obsToSend || null,
           delivery,
@@ -535,7 +546,7 @@ export function CheckoutForm({
           <section className="rounded-2xl border border-border bg-card p-5">
             <h2 className="mb-3 text-sm font-bold">Forma de pagamento</h2>
             <p className="mb-4 text-xs text-muted-foreground">
-              O pagamento será realizado <strong>{mode === "DELIVERY" ? "na entrega" : "somente na retirada"}</strong>.
+              Escolha como deseja pagar na retirada do seu pedido.
             </p>
             <div className="grid gap-2">
               {PAYMENT_OPTIONS.map((opt) => (
@@ -639,9 +650,14 @@ export function CheckoutForm({
             <h2 className="mb-3 text-sm font-bold">Resumo do pedido</h2>
             <ul className="mb-4 space-y-2.5">
               {items.map((i) => (
-                <li key={i.productId} className="flex items-start justify-between gap-2 text-sm">
+                <li key={cartItemKey(i.productId, i.options)} className="flex items-start justify-between gap-2 text-sm">
                   <span className="flex-1">
                     <span className="font-medium text-foreground">{i.quantity}× {i.name}</span>
+                    {i.options && i.options.length > 0 && (
+                      <span className="mt-0.5 block text-xs text-brand-700">
+                        {describeOptions(i.options)}
+                      </span>
+                    )}
                     <span className="block text-xs text-muted-foreground">
                       {formatCurrency(i.unitPrice)} cada
                     </span>

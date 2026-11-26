@@ -99,7 +99,7 @@ export async function sendWhatsApp({ phone, text }: SendOptions): Promise<Whatsa
 const fmtBRL = (n: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
 
-const STORE_NAME = "Delicias das Estações"; // pode virar dinâmico depois
+const STORE_NAME = "RestaurantePro"; // pode virar dinâmico depois
 
 export type OrderEventInput = {
   orderNumber: number;

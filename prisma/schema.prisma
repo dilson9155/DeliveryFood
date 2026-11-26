@@ -227,9 +227,45 @@ model Product {
   orderItems  OrderItem[]
   pricingItems PricingRunItem[]
   pricingCost PricingCost?
+  optionGroups ProductOptionGroup[]
 
   @@index([categoryId, active, order])
   @@index([active, featured])
+}
+
+/// Grupo de escolhas de um produto (ex.: "Escolha a carne", "Escolha o feijão").
+/// Usado para montar marmitex: o cliente escolhe N opções dentro dos limites.
+model ProductOptionGroup {
+  id          String   @id @default(uuid())
+  productId   String
+  name        String
+  description String?
+  minQuantity Int      @default(1)
+  maxQuantity Int      @default(1)
+  required    Boolean  @default(true)
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options ProductOption[]
+
+  @@index([productId, active, order])
+}
+
+/// Opção individual dentro de um grupo (ex.: "Frango grelhado", "Feijão carioca").
+model ProductOption {
+  id        String  @id @default(uuid())
+  groupId   String
+  name      String
+  price     Float   @default(0) // valor adicional sobre o produto base
+  order     Int     @default(0)
+  active    Boolean @default(true)
+
+  group     ProductOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, active, order])
 }
 
 model Order {
@@ -280,9 +316,26 @@ model OrderItem {
 
   order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  options     OrderItemOption[]
 
   @@index([orderId])
   @@index([productId])
+}
+
+/// Escolhas feitas pelo cliente ao montar um produto configurável (marmitex).
+model OrderItemOption {
+  id         String @id @default(uuid())
+  orderItemId String
+  groupId    String?
+  optionId   String?
+  groupName  String
+  optionName String
+  quantity   Int    @default(1)
+  unitPrice  Float  @default(0)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
 }
 
 model OrderHistory {
@@ -521,6 +574,18 @@ model Settings {
   receiptFooter     String?
   printTemplateId   String? @default("thermal80")
   updatedAt         DateTime @updatedAt
+}
+
+/// Chave PIX estática configurada pelo painel. Persiste no banco para funcionar
+/// em ambientes serverless (Vercel), onde o sistema de arquivos é somente leitura.
+model PixSettings {
+  id              String   @id @default("default")
+  key             String
+  keyType         String   @default("EMAIL")
+  receiverName    String   @default("")
+  city            String   @default("")
+  discountPercent Float    @default(0)
+  updatedAt       DateTime @updatedAt
 }
 
 model Payable {
