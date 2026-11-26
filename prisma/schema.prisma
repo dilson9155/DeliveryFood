@@ -45,6 +45,12 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum ComandaStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
 enum DeliveryMode {
   PICKUP       // Retirada no local (como é hoje)
   DELIVERY     // Entrega no endereço do cliente
@@ -187,6 +193,9 @@ model User {
   pricingRuns       PricingRun[]        @relation("PricingRuns")
   campaignsCreated  Campaign[]          @relation("CampaignsCreated")
   campaignRecipients CampaignRecipient[] @relation("CampaignRecipients")
+  comandasCustomer  Comanda[]        @relation("ComandaCustomer")
+  comandasOpened    Comanda[]        @relation("ComandaOpenedBy")
+  comandasClosed    Comanda[]        @relation("ComandaClosedBy")
 
   @@index([userType])
   @@index([phone])
@@ -225,6 +234,7 @@ model Product {
 
   category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   orderItems  OrderItem[]
+  comandaItems ComandaItem[]
   pricingItems PricingRunItem[]
   pricingCost PricingCost?
   optionGroups ProductOptionGroup[]
@@ -285,6 +295,10 @@ model Order {
   discount         Float        @default(0)
   discountReason   String?
   discountByUserId String?
+  // Snapshot do destinatário informado no checkout (usado no recibo).
+  recipientName    String?
+  recipientPhone   String?
+  recipientAddress String?      @db.VarChar(300)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -295,6 +309,7 @@ model Order {
   paymentIntent PaymentIntent?
   cashMovement  CashMovement?
   delivery      Delivery?
+  comanda       Comanda?
   discountBy    User?         @relation("OrderDiscountBy", fields: [discountByUserId], references: [id], onDelete: SetNull)
   receivable    Receivable?
 
@@ -569,6 +584,9 @@ model Settings {
   state             String?
   zipCode           String?
   prepTimeMinutes   Int     @default(30)
+  // Entrega: taxa fixa configurável, sem cotação por distância.
+  deliveryEnabled   Boolean  @default(true)
+  deliveryFee       Float    @default(0)
   isManuallyOpen    Boolean?
   receiptMessage    String?
   receiptFooter     String?
@@ -586,6 +604,87 @@ model PixSettings {
   city            String   @default("")
   discountPercent Float    @default(0)
   updatedAt       DateTime @updatedAt
+}
+
+/// Mesas do salão/balcão. Uma comanda aberta por mesa por vez.
+model RestaurantTable {
+  id        String   @id @default(uuid())
+  number    Int      @unique
+  label     String?
+  seats     Int      @default(2)
+  area      String?
+  active    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comandas Comanda[]
+
+  @@index([active, number])
+}
+
+/// Comanda da mesa: itens vão sendo adicionados e o fechamento gera um pedido.
+model Comanda {
+  id           String        @id @default(uuid())
+  number       Int           @unique @default(autoincrement())
+  tableId      String
+  customerId   String?
+  customerName String?
+  status       ComandaStatus @default(OPEN)
+  observation  String?
+  paymentMethod PaymentMethod?
+  paidNow      Boolean        @default(false)
+  openedAt     DateTime      @default(now())
+  closedAt     DateTime?
+  openedBy     String
+  closedBy     String?
+  orderId      String?       @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  customer      User?           @relation("ComandaCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  openedByUser  User            @relation("ComandaOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
+  closedByUser  User?           @relation("ComandaClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
+  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  items         ComandaItem[]
+
+  @@index([status, openedAt])
+  @@index([tableId, status])
+}
+
+model ComandaItem {
+  id          String   @id @default(uuid())
+  comandaId   String
+  productId   String?
+  productName String
+  unitPrice   Float
+  quantity    Int
+  subtotal    Float
+  createdAt   DateTime @default(now())
+
+  comanda Comanda             @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  product Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  options ComandaItemOption[]
+
+  @@index([comandaId])
+  @@index([productId])
+}
+
+/// Escolhas de marmitex/adicionais feitas na comanda (mesmo modelo do pedido).
+model ComandaItemOption {
+  id            String @id @default(uuid())
+  comandaItemId String
+  groupId       String?
+  optionId      String?
+  groupName     String
+  optionName    String
+  quantity      Int    @default(1)
+  unitPrice     Float  @default(0)
+
+  item ComandaItem @relation(fields: [comandaItemId], references: [id], onDelete: Cascade)
+
+  @@index([comandaItemId])
 }
 
 model Payable {

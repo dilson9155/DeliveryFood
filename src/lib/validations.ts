@@ -105,6 +105,8 @@ export const settingsSchema = z.object({
   state: z.string().max(2).optional().nullable(),
   zipCode: z.string().max(15).optional().nullable(),
   prepTimeMinutes: z.number().int().min(1).max(600).optional(),
+  deliveryEnabled: z.boolean().optional(),
+  deliveryFee: z.number().min(0).max(9999).optional(),
   isManuallyOpen: z.union([z.boolean(), z.null()]).optional(),
   receiptMessage: z.string().max(300).optional().nullable(),
   receiptFooter: z.string().max(300).optional().nullable(),
@@ -149,6 +151,10 @@ export const createOrderSchema = z.object({
   observation: z.string().max(500).optional().nullable(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
+  // Dados informados no checkout, gravados como snapshot para o recibo.
+  recipientName: z.string().min(2).max(120).optional(),
+  recipientPhone: phoneSchema.optional(),
+  recipientAddress: z.string().max(300).optional().nullable(),
   delivery: z
     .object({
       mode: z.enum(["PICKUP", "DELIVERY"]),
@@ -190,4 +196,42 @@ export const cashMovementSchema = z.object({
   amount: z.number().positive("Valor deve ser maior que zero"),
   description: z.string().max(200).optional().nullable(),
   paymentMethod: z.enum(["CASH", "CARD", "PIX"]).optional().nullable(),
+});
+
+export const restaurantTableSchema = z.object({
+  id: z.string().optional(),
+  number: z.number().int().min(1, "Informe o número da mesa").max(999),
+  label: z.string().max(60).optional().nullable(),
+  seats: z.number().int().min(1).max(30),
+  area: z.string().max(60).optional().nullable(),
+  notes: z.string().max(200).optional().nullable(),
+  active: z.boolean().optional().default(true),
+});
+
+export const openComandaSchema = z.object({
+  tableId: z.string().min(1, "Selecione a mesa"),
+  customerId: z.string().optional().nullable(),
+  customerName: z.string().max(120).optional().nullable(),
+  observation: z.string().max(500).optional().nullable(),
+});
+
+export const addComandaItemsSchema = z.object({
+  comandaId: z.string().min(1),
+  items: z.array(orderItemInputSchema).min(1, "Carrinho vazio"),
+});
+
+export const comandaItemQuantitySchema = z.object({
+  itemId: z.string().min(1),
+  quantity: z.number().int().min(0).max(99),
+});
+
+export const transferComandaSchema = z.object({
+  comandaId: z.string().min(1),
+  tableId: z.string().min(1, "Selecione a mesa de destino"),
+});
+
+export const closeComandaSchema = z.object({
+  comandaId: z.string().min(1),
+  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+  paidNow: z.boolean().optional().default(false),
 });

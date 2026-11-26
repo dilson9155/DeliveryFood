@@ -53,13 +53,8 @@ export default async function CheckoutPage() {
         state: context.settings.state,
         phone: context.settings.phone,
         prepTimeMinutes: context.settings.prepTimeMinutes,
-        // Restaurante: pedidos online são sempre para retirada no balcão.
-        deliveryEnabled: false,
-        baseFee: 0,
-        feePerKm: 0,
-        minFee: 0,
-        maxFee: 0,
-        maxDistanceKm: 0,
+        deliveryEnabled: context.settings.deliveryEnabled,
+        deliveryFee: context.settings.deliveryFee,
       }}
       hours={context.hours.map((h) => ({
         dayOfWeek: h.dayOfWeek,
@@ -68,7 +63,6 @@ export default async function CheckoutPage() {
         closeTime: h.closeTime,
       }))}
       savedAddresses={JSON.parse(JSON.stringify(savedAddresses))}
-      deliveryEnabled={false}
     />
   );
 }

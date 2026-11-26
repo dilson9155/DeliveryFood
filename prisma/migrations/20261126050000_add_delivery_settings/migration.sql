@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Settings"
+ADD COLUMN     "deliveryEnabled" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "deliveryFee" DOUBLE PRECISION NOT NULL DEFAULT 0;

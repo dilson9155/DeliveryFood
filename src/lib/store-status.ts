@@ -32,6 +32,8 @@ export async function getStoreContext(): Promise<StoreContext> {
     state: null,
     zipCode: null,
     prepTimeMinutes: 30,
+    deliveryEnabled: true,
+    deliveryFee: 0,
     isManuallyOpen: null,
     receiptMessage: null,
     receiptFooter: null,

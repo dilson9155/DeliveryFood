@@ -21,6 +21,10 @@ type ReceiptOrder = {
   discountReason: string | null;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  deliveryMode: "PICKUP" | "DELIVERY";
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
   observation: string | null;
   createdAt: string;
   customer: { name: string; phone: string | null };
@@ -165,12 +169,18 @@ export function Receipt({
 
           <hr />
 
-          {/* Cliente */}
+          {/* Destinatário / cliente */}
           <div>
-            <h2>Cliente</h2>
-            <div>{order.customer.name}</div>
-            {order.customer.phone && (
-              <div className="small">{formatPhone(order.customer.phone)}</div>
+            <h2>{order.deliveryMode === "DELIVERY" ? "Entrega" : "Cliente"}</h2>
+            <div className="bold">{order.recipientName || order.customer.name}</div>
+            {(order.recipientPhone || order.customer.phone) && (
+              <div className="small">{formatPhone(order.recipientPhone || order.customer.phone || "")}</div>
+            )}
+            {order.recipientAddress && (
+              <div className="small">{order.recipientAddress}</div>
+            )}
+            {order.deliveryMode === "PICKUP" && (
+              <div className="small">Retirada no estabelecimento</div>
             )}
           </div>
 

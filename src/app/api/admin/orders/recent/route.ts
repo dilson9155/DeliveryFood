@@ -18,7 +18,13 @@ export async function GET() {
     orderBy: [{ status: Prisma.SortOrder.desc }, { createdAt: Prisma.SortOrder.asc }],
     include: {
       customer: { select: { name: true, phone: true } },
-      items: true,
+      items: {
+        include: {
+          options: {
+            select: { groupName: true, optionName: true, quantity: true, unitPrice: true },
+          },
+        },
+      },
       payment: true,
     },
     take: 300,

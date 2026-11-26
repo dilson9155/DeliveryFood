@@ -42,6 +42,8 @@ type SettingsData = {
   state: string | null;
   zipCode: string | null;
   prepTimeMinutes: number;
+  deliveryEnabled: boolean;
+  deliveryFee: number;
   isManuallyOpen: boolean | null;
   receiptMessage: string | null;
   receiptFooter: string | null;
@@ -111,6 +113,8 @@ function SettingsPanelInner({
     zipCode: initial?.zipCode ?? "",
     logoUrl: initial?.logoUrl ?? "",
     prepTimeMinutes: initial?.prepTimeMinutes ?? 30,
+    deliveryEnabled: initial?.deliveryEnabled ?? true,
+    deliveryFee: initial?.deliveryFee ?? 0,
     receiptMessage: initial?.receiptMessage ?? "",
     receiptFooter: initial?.receiptFooter ?? "",
     printTemplateId: initial?.printTemplateId ?? DEFAULT_TEMPLATE_ID,
@@ -214,6 +218,8 @@ function SettingsPanelInner({
       const res = await saveSettingsAction({
         ...form,
         prepTimeMinutes: Number(form.prepTimeMinutes) || 30,
+        deliveryEnabled: form.deliveryEnabled,
+        deliveryFee: Number(form.deliveryFee) || 0,
         printTemplateId: form.printTemplateId,
         receiptMessage: form.receiptMessage || null,
         receiptFooter: form.receiptFooter || null,
@@ -365,6 +371,43 @@ function SettingsPanelInner({
           <div>
             <Label htmlFor="prepTime">Tempo de preparo (min)</Label>
             <Input id="prepTime" type="number" min={1} max={600} value={form.prepTimeMinutes} onChange={(e) => set("prepTimeMinutes", Number(e.target.value))} />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <h3 className="mb-3 text-sm font-bold">Entrega</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background p-3">
+                  <input
+                    type="checkbox"
+                    checked={form.deliveryEnabled}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, deliveryEnabled: e.target.checked }))
+                    }
+                    className="h-4 w-4 accent-[#FF9800]"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">Aceitar pedidos com entrega</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Sem cotação por distância; o entregador recebe os recibos em ordem de chegada.
+                    </span>
+                  </span>
+                </label>
+                <div>
+                  <Label htmlFor="deliveryFee">Taxa de entrega (R$)</Label>
+                  <Input
+                    id="deliveryFee"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.deliveryFee}
+                    onChange={(e) => set("deliveryFee", Number(e.target.value))}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Valor fixo aplicado a todo pedido com entrega.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
         <CardContent className="border-t border-border">

@@ -9,12 +9,6 @@ import { createOrderSchema } from "@/lib/validations";
 import { roundMoney } from "@/lib/format";
 import { getStoreContext } from "@/lib/store-status";
 import {
-  quoteDelivery,
-  quoteDeliveryFromCoords,
-  type DeliveryQuote,
-  type DeliveryQuoteOk,
-} from "@/lib/delivery";
-import {
   sendOrderEventWhatsApp,
   sendOrderReceivedWhatsApp,
 } from "@/lib/notify";
@@ -34,10 +28,13 @@ export type CreateOrderInput = {
   items: { productId: string; quantity: number; options?: OptionSelection[] }[];
   paymentMethod: PaymentMethod;
   observation?: string | null;
+  // Snapshot exibido no recibo (nome/telefone/endereço informados no checkout).
+  recipientName?: string;
+  recipientPhone?: string;
+  recipientAddress?: string | null;
   delivery?: {
     mode: DeliveryMode;
     addressId?: string;
-    // Snapshot de endereço (caso o cliente não tenha salvo)
     address?: {
       street: string;
       number: string;
@@ -47,10 +44,6 @@ export type CreateOrderInput = {
       state: string;
       zipCode: string;
     };
-    fee?: number;
-    distanceKm?: number;
-    lat?: number;
-    lng?: number;
   };
 };
 
@@ -177,7 +170,7 @@ export async function createOrderAction(
 
   const customer = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, active: true, name: true, defaultObservation: true },
+    select: { id: true, active: true, name: true, phone: true, defaultObservation: true },
   });
   if (!customer || !customer.active) {
     return { ok: false, error: "Conta inválida. Fale conosco." };
@@ -193,57 +186,72 @@ export async function createOrderAction(
   // para garantir que ou tudo persiste, ou nada persiste.
   const deliveryInput = parsed.data.delivery;
   const deliveryMode = deliveryInput?.mode ?? DeliveryMode.PICKUP;
+  if (deliveryMode === DeliveryMode.DELIVERY && !context.settings.deliveryEnabled) {
+    return {
+      ok: false,
+      error: "A entrega não está disponível no momento. Retire seu pedido na loja.",
+    };
+  }
 
-  // === Cotação autoritativa da entrega (no servidor) ===
-  // A taxa/distância NÃO é confiada no que o cliente envia: recalculamos
-  // aqui pela rota real por ruas (OSRM) e gravamos em Order.deliveryFee e
-  // Delivery.fee/distanceKm.
-  let deliveryQuote: DeliveryQuoteOk | null = null;
+  // Taxa fixa configurada pelo admin — nunca confiada no cliente.
+  const deliveryFee = deliveryMode === DeliveryMode.DELIVERY
+    ? roundMoney(context.settings.deliveryFee)
+    : 0;
+  const totalWithDelivery = roundMoney(total + deliveryFee);
+
+  type AddressFields = {
+    street: string;
+    number: string;
+    complement: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+  const formatAddress = (a: AddressFields) =>
+    `${a.street}, ${a.number}${a.complement ? ` - ${a.complement}` : ""} — ${a.neighborhood}, ${a.city}/${a.state} — CEP ${a.zipCode}`.slice(0, 300);
+
+  let addressFields: AddressFields | null = null;
   if (deliveryMode === DeliveryMode.DELIVERY) {
-    let destCoords: { lat: number; lng: number } | null = null;
-
-    // Endereço salvo: usa as coordenadas do cadastro (fonte confiável)
     if (deliveryInput?.addressId) {
       const addr = await prisma.address.findFirst({
         where: { id: deliveryInput.addressId, userId: customer.id },
       });
-      if (addr && Number.isFinite(addr.lat) && Number.isFinite(addr.lng)) {
-        destCoords = { lat: addr.lat, lng: addr.lng };
+      if (addr) {
+        addressFields = {
+          street: addr.street,
+          number: addr.number,
+          complement: addr.complement,
+          neighborhood: addr.neighborhood,
+          city: addr.city,
+          state: addr.state,
+          zipCode: addr.zipCode,
+        };
       }
     }
-    // Endereço recém-salvo sem coords: usa as do geocoding do checkout
-    const clientLat = Number(deliveryInput?.lat);
-    const clientLng = Number(deliveryInput?.lng);
-    if (
-      !destCoords &&
-      Number.isFinite(clientLat) &&
-      Number.isFinite(clientLng) &&
-      clientLat !== 0 &&
-      clientLng !== 0
-    ) {
-      destCoords = { lat: clientLat, lng: clientLng };
+    if (!addressFields && deliveryInput?.address) {
+      const a = deliveryInput.address;
+      addressFields = {
+        street: a.street,
+        number: a.number,
+        complement: a.complement ?? null,
+        neighborhood: a.neighborhood,
+        city: a.city,
+        state: a.state,
+        zipCode: a.zipCode,
+      };
     }
-
-    let quote: DeliveryQuote;
-    if (destCoords) {
-      quote = await quoteDeliveryFromCoords(destCoords.lat, destCoords.lng);
-    } else if (deliveryInput?.address) {
-      quote = await quoteDelivery(deliveryInput.address);
-    } else {
+    if (!addressFields) {
       return { ok: false, error: "Informe o endereço de entrega." };
     }
-    if (!quote.ok) {
-      return { ok: false, error: quote.error };
-    }
-    deliveryQuote = quote;
   }
 
-  const order = await prisma.$transaction(async (tx) => {
-    const deliveryFee = deliveryMode === DeliveryMode.DELIVERY
-      ? roundMoney(deliveryQuote?.fee ?? deliveryInput?.fee ?? 0)
-      : 0;
-    const totalWithDelivery = roundMoney(total + deliveryFee);
+  const recipientName = parsed.data.recipientName?.trim() || customer.name;
+  const recipientPhone = parsed.data.recipientPhone || customer.phone || null;
+  const recipientAddress = parsed.data.recipientAddress?.trim() ||
+    (addressFields ? formatAddress(addressFields) : null);
 
+  const order = await prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
         customerId: customer.id,
@@ -255,6 +263,9 @@ export async function createOrderAction(
         observation,
         status: OrderStatus.NEW,
         deliveryMode,
+        recipientName,
+        recipientPhone,
+        recipientAddress,
         items: {
           create: orderItems.map(
             (i): Prisma.OrderItemUncheckedCreateWithoutOrderInput => ({
@@ -290,75 +301,22 @@ export async function createOrderAction(
       include: { customer: true, items: true },
     });
 
-    // Se for entrega, cria o registro de Delivery com snapshot do endereço
-    if (deliveryMode === DeliveryMode.DELIVERY) {
-      let addressSnapshot: Record<string, unknown> | null = null;
-      let distanceKm: number | null = null;
-      let lat: number | null = null;
-      let lng: number | null = null;
-
-      if (deliveryInput?.addressId) {
-        const addr = await tx.address.findFirst({
-          where: { id: deliveryInput.addressId, userId: customer.id },
-        });
-        if (addr) {
-          addressSnapshot = {
-            label: addr.label,
-            recipientName: addr.recipientName,
-            street: addr.street,
-            number: addr.number,
-            complement: addr.complement,
-            neighborhood: addr.neighborhood,
-            city: addr.city,
-            state: addr.state,
-            zipCode: addr.zipCode,
-            lat: addr.lat,
-            lng: addr.lng,
-          };
-          lat = addr.lat;
-          lng = addr.lng;
-        }
-      }
-      if (!addressSnapshot && deliveryInput?.address) {
-        const a = deliveryInput.address;
-        addressSnapshot = {
-          label: null,
-          recipientName: null,
-          street: a.street,
-          number: a.number,
-          complement: a.complement ?? null,
-          neighborhood: a.neighborhood,
-          city: a.city,
-          state: a.state,
-          zipCode: a.zipCode,
-          lat: deliveryInput.lat ?? null,
-          lng: deliveryInput.lng ?? null,
-        };
-        lat = deliveryInput.lat ?? null;
-        lng = deliveryInput.lng ?? null;
-      }
-      distanceKm = deliveryQuote?.distanceKm ?? deliveryInput?.distanceKm ?? null;
-
-      if (addressSnapshot) {
-        // Coordenadas e rota autoritativas calculadas no servidor
-        if (deliveryQuote) {
-          addressSnapshot.lat = deliveryQuote.dest.lat;
-          addressSnapshot.lng = deliveryQuote.dest.lng;
-          if (deliveryQuote.route && deliveryQuote.route.length > 0) {
-            addressSnapshot.route = deliveryQuote.route;
-          }
-        }
-        await tx.delivery.create({
-          data: {
-            orderId: created.id,
-            mode: DeliveryMode.DELIVERY,
-            status: DeliveryStatus.PENDING,
-            addressSnapshot: addressSnapshot as object,
-            distanceKm,
-            fee: roundMoney(deliveryQuote?.fee ?? deliveryInput?.fee ?? 0),
-          },
-        });
-      }
+    // Registro de entrega apenas para organizar a fila de recibos do entregador.
+    // Sem coordenadas, rota, atribuição de motoboy ou rastreamento.
+    if (deliveryMode === DeliveryMode.DELIVERY && addressFields) {
+      await tx.delivery.create({
+        data: {
+          orderId: created.id,
+          mode: DeliveryMode.DELIVERY,
+          status: DeliveryStatus.PENDING,
+          addressSnapshot: {
+            ...addressFields,
+            recipientName,
+            recipientPhone,
+          } as object,
+          fee: deliveryFee,
+        },
+      });
     }
 
     // Notificações dentro da transação (best-effort: se falhar aqui
@@ -368,7 +326,7 @@ export async function createOrderAction(
         userId: null,
         type: "NEW_ORDER",
         title: `Novo pedido #${created.number}`,
-        body: `${created.customer.name} realizou um pedido de ${created.items.length} item(ns) — ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(total)}.`,
+        body: `${created.customer.name} realizou um pedido de ${created.items.length} item(ns) — ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalWithDelivery)}.`,
         link: `/admin/pedidos`,
       },
     });

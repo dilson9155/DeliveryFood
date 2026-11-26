@@ -14,6 +14,8 @@ import { CheckCircle2,
   Loader2,
   Tag,
   Percent,
+  Search,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import { STATUS_TONE } from "@/lib/order-ui";
 import { changeOrderStatusAction, applyDiscountAction, removeDiscountAction } from "@/app/actions/orders";
 import { confirmPaymentAction } from "@/app/actions/cash";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   OrderStatus,
   PaymentMethod,
@@ -63,6 +66,11 @@ type AdminOrder = Order & {
   })[];
   payment: Payment | null;
   discountReason: string | null;
+  deliveryMode?: "PICKUP" | "DELIVERY";
+  deliveryFee?: number;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientAddress?: string | null;
 };
 
 function orderLabel(n: number) {
@@ -83,6 +91,7 @@ export function OrdersBoard({
   const [discountOrder, setDiscountOrder] = useState<AdminOrder | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevNewIds = useRef<string[]>([]);
 
@@ -200,6 +209,20 @@ export function OrdersBoard({
   );
 
   const activeColumns = COLUMNS.filter((c) => statuses.includes(c.status));
+  const term = search.trim().toLowerCase();
+  const filteredOrders = term
+    ? orders.filter((o) =>
+        [
+          orderLabel(o.number),
+          o.customer.name,
+          o.customer.phone,
+          o.recipientName,
+          o.recipientPhone,
+          o.recipientAddress,
+          ...o.items.map((i) => i.productName),
+        ].some((value) => value?.toLowerCase().includes(term))
+      )
+    : orders;
 
   return (
     <div className="space-y-5">
@@ -210,7 +233,22 @@ export function OrdersBoard({
             Atualização automática a cada 3s. Clique em um pedido para ver detalhes.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar pedido, cliente, item..."
+              className="h-9 w-56 rounded-xl border border-border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </div>
+          <Link
+            href="/admin/entregas"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted"
+          >
+            <Truck className="h-4 w-4" /> Fila de entregas
+          </Link>
           <Button
             size="sm"
             variant="outline"
@@ -230,7 +268,7 @@ export function OrdersBoard({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {activeColumns.map((col) => {
-          const items = orders.filter((o) => o.status === col.status);
+          const items = filteredOrders.filter((o) => o.status === col.status);
           return (
             <div key={col.status} className={`rounded-2xl border border-t-4 ${col.tone} bg-card`}>
               <div className="flex items-center justify-between px-4 py-3">
@@ -627,8 +665,18 @@ function OrderDetail({
               <Info className="h-4 w-4" /> Realizado em {formatTime(order.createdAt)}
             </p>
             <div className="mt-2 rounded-xl bg-muted p-3">
-              <p className="text-sm font-semibold">{order.customer.name}</p>
-              <p className="text-sm text-muted-foreground">{order.customer.phone ?? "-"}</p>
+              <p className="text-sm font-semibold">
+                {order.recipientName || order.customer.name}
+                {order.deliveryMode === "DELIVERY" && (
+                  <span className="ml-2 text-xs font-normal text-brand-700">Entrega</span>
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {order.recipientPhone || order.customer.phone || "-"}
+              </p>
+              {order.recipientAddress && (
+                <p className="mt-1 text-xs text-muted-foreground">{order.recipientAddress}</p>
+              )}
             </div>
           </div>
 
@@ -656,6 +704,12 @@ function OrderDetail({
                 )}
               </div>
             ))}
+            {Boolean(order.deliveryFee) && (
+              <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                <span>Taxa de entrega</span>
+                <span>{formatCurrency(order.deliveryFee ?? 0)}</span>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-between border-t border-border pt-3">
               <span className="font-semibold">Total</span>
               <span className="text-lg font-extrabold text-brand-700">{formatCurrency(order.total)}</span>

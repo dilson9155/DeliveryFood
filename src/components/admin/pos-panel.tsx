@@ -11,6 +11,7 @@ import {
   PackageCheck,
   Plus,
   QrCode,
+  Receipt,
   Search,
   ShoppingCart,
   Trash2,
@@ -281,7 +282,7 @@ export function PosPanel({
           </p>
         </div>
         <Link
-          href="/admin/pedidos"
+          href="/admin/comandas"
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium hover:bg-muted"
         >
           <PackageCheck className="h-4 w-4" /> Ver comandas
@@ -302,11 +303,11 @@ export function PosPanel({
             </div>
             <div className="flex gap-2">
               <Link
-                href={`/pedido/${success.id}`}
+                href={`/recibo/${success.id}`}
                 target="_blank"
-                className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-sm hover:bg-muted"
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700"
               >
-                Ver recibo
+                <Receipt className="h-4 w-4" /> Imprimir recibo
               </Link>
               <Button size="sm" variant="ghost" onClick={() => setSuccess(null)}>
                 <X className="h-4 w-4" /> Fechar
@@ -550,7 +551,7 @@ export function PosPanel({
                       ? "Peça ao caixa para registrar o recebimento."
                       : paidNow
                         ? "Registra entrada no caixa e pedido como pronto."
-                        : "Pedido fica a pagar; confirme depois em Comandas."}
+                        : "Pedido fica a pagar; confirme depois em Pedidos."}
                   </span>
                 </span>
               </label>
