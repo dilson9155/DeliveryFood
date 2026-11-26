@@ -5,16 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightLeft,
-  Banknote,
   Check,
-  ChevronDown,
   CreditCard,
   LayoutGrid,
   Loader2,
   Minus,
   Plus,
-  Printer,
-  QrCode,
   Receipt as ReceiptIcon,
   Search,
   ShoppingCart,
@@ -30,7 +26,6 @@ import { ProductConfigurator } from "@/components/store/product-configurator";
 import {
   addComandaItemsAction,
   cancelComandaAction,
-  closeComandaAction,
   openComandaAction,
   setComandaItemQuantityAction,
   setComandaObservationAction,
@@ -38,7 +33,6 @@ import {
 } from "@/app/actions/comandas";
 import { cn, formatCurrency, formatTime } from "@/lib/format";
 import {
-  cartItemKey,
   describeOptions,
   type OptionChoice,
   type OptionGroupView,
@@ -85,23 +79,6 @@ export type ProductView = {
   optionGroups: OptionGroupView[];
 };
 
-type CartItem = {
-  key: string;
-  productId: string;
-  name: string;
-  unitPrice: number;
-  quantity: number;
-  options: OptionChoice[];
-};
-
-type PaymentMethod = "CASH" | "CARD" | "PIX";
-
-const PAYMENTS: { value: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-  { value: "CASH", label: "Dinheiro", icon: <Banknote className="h-4 w-4" /> },
-  { value: "CARD", label: "Cartão", icon: <CreditCard className="h-4 w-4" /> },
-  { value: "PIX", label: "PIX", icon: <QrCode className="h-4 w-4" /> },
-];
-
 function normalize(value: string) {
   return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -111,13 +88,11 @@ export function ComandasPanel({
   comandas: initialComandas,
   products,
   customers,
-  canConfirmPayments,
 }: {
   tables: TableView[];
   comandas: ComandaView[];
   products: ProductView[];
   customers: { id: string; name: string; phone: string | null }[];
-  canConfirmPayments: boolean;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -132,21 +107,12 @@ export function ComandasPanel({
     customerName: "",
     observation: "",
   });
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
   const [configuring, setConfiguring] = useState<ProductView | null>(null);
-  const [observation, setObservation] = useState("");
+  const [observation, setObservation] = useState(initialComandas[0]?.observation ?? "");
   const [transferOpen, setTransferOpen] = useState(false);
   const [targetTableId, setTargetTableId] = useState("");
-  const [closeOpen, setCloseOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
-  const [paidNow, setPaidNow] = useState(canConfirmPayments);
-  const [receipt, setReceipt] = useState<{
-    orderId: string;
-    number: number;
-    total: number;
-  } | null>(null);
 
   useEffect(() => {
     setTables(initialTables);
@@ -154,6 +120,11 @@ export function ComandasPanel({
   }, [initialTables, initialComandas]);
 
   const selected = comandas.find((c) => c.id === selectedId) ?? null;
+
+  useEffect(() => {
+    setObservation(selected?.observation ?? "");
+  }, [selected?.id]);
+
   const occupied = useMemo(
     () => new Map(comandas.map((c) => [c.tableId, c])),
     [comandas]
@@ -174,31 +145,33 @@ export function ComandasPanel({
     });
   }, [products, query, category]);
 
-  useEffect(() => {
-    setObservation(selected?.observation ?? "");
-    setCart([]);
-  }, [selected?.id, selected?.observation]);
-
-  function addItem(product: ProductView, options: OptionChoice[], unitPrice: number) {
-    const key = cartItemKey(product.id, options);
-    setCart((prev) => {
-      const existing = prev.find((item) => item.key === key);
-      if (existing) {
-        return prev.map((item) =>
-          item.key === key ? { ...item, quantity: item.quantity + 1 } : item
-        );
+  function addProductToComanda(
+    product: ProductView,
+    options: OptionChoice[],
+    unitPrice: number
+  ) {
+    if (!selected || pending) return;
+    startTransition(async () => {
+      const result = await addComandaItemsAction({
+        comandaId: selected.id,
+        items: [
+          {
+            productId: product.id,
+            quantity: 1,
+            options: options.map((option) => ({
+              groupId: option.groupId,
+              optionId: option.optionId,
+              quantity: option.quantity,
+            })),
+          },
+        ],
+      });
+      if (!result.ok) {
+        show("error", result.error);
+        return;
       }
-      return [
-        ...prev,
-        {
-          key,
-          productId: product.id,
-          name: product.name,
-          unitPrice,
-          quantity: 1,
-          options,
-        },
-      ];
+      show("success", `${product.name} adicionado.`);
+      router.refresh();
     });
   }
 
@@ -207,69 +180,11 @@ export function ComandasPanel({
       setConfiguring(product);
       return;
     }
-    addItem(product, [], product.price);
-  }
-
-  function changeCartQuantity(key: string, delta: number) {
-    setCart((prev) =>
-      prev
-        .map((item) => (item.key === key ? { ...item, quantity: item.quantity + delta } : item))
-        .filter((item) => item.quantity > 0)
-    );
-  }
-
-  function openComanda() {
-    if (!openingTable) return;
-    startTransition(async () => {
-      const result = await openComandaAction({
-        tableId: openingTable.id,
-        customerId: openForm.customerId || null,
-        customerName: openForm.customerName || null,
-        observation: openForm.observation || null,
-      });
-      if (!result.ok) {
-        show("error", result.error);
-        return;
-      }
-      setOpeningTable(null);
-      setOpenForm({ customerId: "", customerName: "", observation: "" });
-      setReceipt(null);
-      setSelectedId(result.id);
-      show("success", `Comanda #${result.number} aberta em ${result.tableLabel}.`);
-      router.refresh();
-    });
-  }
-
-  function addItems() {
-    if (!selected) return;
-    if (cart.length === 0) {
-      show("error", "Adicione produtos antes de salvar.");
-      return;
-    }
-    startTransition(async () => {
-      const result = await addComandaItemsAction({
-        comandaId: selected.id,
-        items: cart.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          options: item.options.map((o) => ({
-            groupId: o.groupId,
-            optionId: o.optionId,
-            quantity: o.quantity,
-          })),
-        })),
-      });
-      if (!result.ok) {
-        show("error", result.error);
-        return;
-      }
-      setCart([]);
-      show("success", "Itens adicionados à comanda.");
-      router.refresh();
-    });
+    addProductToComanda(product, [], product.price);
   }
 
   function changeItemQuantity(itemId: string, quantity: number) {
+    if (pending) return;
     startTransition(async () => {
       const result = await setComandaItemQuantityAction({ itemId, quantity });
       if (!result.ok) {
@@ -289,6 +204,27 @@ export function ComandasPanel({
         return;
       }
       show("success", "Observação salva.");
+      router.refresh();
+    });
+  }
+
+  function openComanda() {
+    if (!openingTable) return;
+    startTransition(async () => {
+      const result = await openComandaAction({
+        tableId: openingTable.id,
+        customerId: openForm.customerId || null,
+        customerName: openForm.customerName || null,
+        observation: openForm.observation || null,
+      });
+      if (!result.ok) {
+        show("error", result.error);
+        return;
+      }
+      setOpeningTable(null);
+      setOpenForm({ customerId: "", customerName: "", observation: "" });
+      setSelectedId(result.id);
+      show("success", `Comanda #${result.number} aberta em ${result.tableLabel}.`);
       router.refresh();
     });
   }
@@ -324,95 +260,41 @@ export function ComandasPanel({
     });
   }
 
-  function close() {
-    if (!selected) return;
-    startTransition(async () => {
-      const result = await closeComandaAction({
-        comandaId: selected.id,
-        paymentMethod,
-        paidNow,
-      });
-      if (!result.ok) {
-        show("error", result.error);
-        return;
-      }
-      setCloseOpen(false);
-      setReceipt({
-        orderId: result.orderId,
-        number: result.orderNumber,
-        total: result.total,
-      });
-      setSelectedId(null);
-      show("success", `Comanda fechada — pedido #${result.orderNumber} criado.`);
-      router.refresh();
-    });
-  }
-
-  const cartSubtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl">
-            <UtensilsCrossed className="h-6 w-6 text-brand-600" /> Comandas
+          <h1 className="flex items-center gap-2 text-lg font-bold sm:text-xl">
+            <UtensilsCrossed className="h-5 w-5 text-brand-600" /> Comandas
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Abra uma comanda por mesa, adicione itens e feche quando o cliente terminar.
+          <p className="text-xs text-muted-foreground">
+            Adicione com um clique, ajuste na tabela e feche no PDV com troco.
           </p>
         </div>
         <div className="flex gap-2">
           <Link
             href="/admin/mesas"
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium hover:bg-muted"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-xs font-medium hover:bg-muted"
           >
             <LayoutGrid className="h-4 w-4" /> Mesas
           </Link>
           <Link
             href="/admin/pdv"
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium hover:bg-muted"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-xs font-medium hover:bg-muted"
           >
-            Ir para o PDV
+            <CreditCard className="h-4 w-4" /> PDV
           </Link>
         </div>
       </div>
 
-      {receipt && (
-        <Card className="border-success/30 bg-success/5">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-success/15 text-success">
-                <Check className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-bold">Comanda fechada — pedido #{String(receipt.number).padStart(4, "0")}</p>
-                <p className="text-sm text-muted-foreground">{formatCurrency(receipt.total)}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/recibo/${receipt.orderId}`}
-                target="_blank"
-                className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700"
-              >
-                <Printer className="h-4 w-4" /> Imprimir recibo
-              </Link>
-              <Button size="sm" variant="ghost" onClick={() => setReceipt(null)}>
-                <X className="h-4 w-4" /> Fechar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid items-start gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid items-start gap-3 xl:grid-cols-[270px_minmax(0,1fr)]">
         {/* Mesas */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle>Mesas</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Mesas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-2">
               {tables
                 .slice()
                 .sort((a, b) => a.number - b.number)
@@ -425,16 +307,14 @@ export function ComandasPanel({
                       type="button"
                       disabled={!table.active}
                       onClick={() => {
-                        if (comanda) {
-                          setSelectedId(comanda.id);
-                          setReceipt(null);
-                        } else {
+                        if (comanda) setSelectedId(comanda.id);
+                        else {
                           setOpeningTable(table);
                           setOpenForm({ customerId: "", customerName: "", observation: "" });
                         }
                       }}
                       className={cn(
-                        "min-h-[88px] rounded-xl border p-3 text-left transition-colors",
+                        "min-h-[58px] rounded-lg border p-2 text-left transition-colors",
                         !table.active && "cursor-not-allowed opacity-50",
                         isSelected
                           ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600"
@@ -443,15 +323,12 @@ export function ComandasPanel({
                             : "border-border bg-background hover:border-brand-400 hover:bg-brand-50"
                       )}
                     >
-                      <span className="block text-sm font-bold">
+                      <span className="block truncate text-[11px] font-bold">
                         {table.label || `Mesa ${table.number}`}
-                      </span>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">
-                        {table.area || "Salão"} · {table.seats} lugares
                       </span>
                       <span
                         className={cn(
-                          "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                          "mt-1 inline-block max-w-full truncate rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
                           !table.active
                             ? "bg-muted text-muted-foreground"
                             : comanda
@@ -462,8 +339,8 @@ export function ComandasPanel({
                         {!table.active
                           ? "Inativa"
                           : comanda
-                            ? `Comanda #${comanda.number}`
-                            : "Livre — abrir"}
+                            ? `#${String(comanda.number).padStart(4, "0")}`
+                            : "Livre"}
                       </span>
                     </button>
                   );
@@ -473,13 +350,13 @@ export function ComandasPanel({
         </Card>
 
         {/* Comanda selecionada */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-3">
           {!selected ? (
             <Card>
-              <CardContent className="py-16 text-center">
-                <ReceiptIcon className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="font-semibold">Selecione uma mesa ocupada</p>
-                <p className="mt-1 text-sm text-muted-foreground">
+              <CardContent className="py-10 text-center">
+                <ReceiptIcon className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+                <p className="text-sm font-semibold">Selecione uma mesa ocupada</p>
+                <p className="text-xs text-muted-foreground">
                   Clique em uma mesa livre para abrir uma comanda.
                 </p>
               </CardContent>
@@ -487,134 +364,182 @@ export function ComandasPanel({
           ) : (
             <>
               <Card>
-                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
-                  <div>
-                    <CardTitle className="text-lg">
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-sm">
                       Comanda #{String(selected.number).padStart(4, "0")} · {selected.tableName}
                     </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      Aberta às {formatTime(selected.openedAt)}
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {formatTime(selected.openedAt)}
                       {selected.customerName ? ` · ${selected.customerName}` : " · Sem cliente"}
                     </p>
                   </div>
-                  <span className="text-xl font-extrabold text-brand-700">
+                  <span className="text-lg font-extrabold text-brand-700">
                     {formatCurrency(selected.total)}
                   </span>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-2">
                   {selected.items.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                      Nenhum item ainda. Escolha produtos abaixo.
+                    <p className="rounded-lg border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
+                      Nenhum item. Escolha produtos abaixo.
                     </p>
                   ) : (
-                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                      {selected.items.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-border p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold">{item.productName}</p>
-                              {item.options.length > 0 && (
-                                <p className="text-[11px] text-brand-700">
-                                  {describeOptions(item.options)}
+                    <div className="overflow-hidden rounded-lg border border-border">
+                      <table className="w-full table-fixed text-xs">
+                        <thead className="bg-muted/60 text-[9px] uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="w-[46%] px-2 py-1 text-left font-semibold">Produto</th>
+                            <th className="w-24 px-1 py-1 text-center font-semibold">Qtd</th>
+                            <th className="w-20 px-1 py-1 text-right font-semibold">Unit.</th>
+                            <th className="w-20 px-2 py-1 text-right font-semibold">Total</th>
+                            <th className="w-7 py-1" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.items.map((item) => (
+                            <tr key={item.id} className="border-t border-border/70">
+                              <td className="px-2 py-1 align-middle">
+                                <p className="truncate text-[11px] font-semibold leading-tight">
+                                  {item.productName}
                                 </p>
-                              )}
-                              <p className="text-xs text-muted-foreground">
-                                {formatCurrency(item.unitPrice)} / un.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => changeItemQuantity(item.id, 0)}
-                              className="text-muted-foreground hover:text-danger"
-                              aria-label="Remover item"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => changeItemQuantity(item.id, Math.max(0, item.quantity - 1))}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
-                              >
-                                <Minus className="h-3.5 w-3.5" />
-                              </button>
-                              <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                              <button
-                                type="button"
-                                onClick={() => changeItemQuantity(item.id, item.quantity + 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                            <span className="font-bold">{formatCurrency(item.subtotal)}</span>
-                          </div>
-                        </div>
-                      ))}
+                                {item.options.length > 0 && (
+                                  <p className="truncate text-[9px] text-brand-700">
+                                    {describeOptions(item.options)}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="px-1 py-1">
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={pending}
+                                    onClick={() =>
+                                      changeItemQuantity(item.id, Math.max(0, item.quantity - 1))
+                                    }
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-border disabled:opacity-50"
+                                    aria-label={`Diminuir ${item.productName}`}
+                                  >
+                                    <Minus className="h-2.5 w-2.5" />
+                                  </button>
+                                  <span className="w-4 text-center text-[11px] font-bold">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={pending}
+                                    onClick={() => changeItemQuantity(item.id, item.quantity + 1)}
+                                    className="flex h-5 w-5 items-center justify-center rounded border border-border disabled:opacity-50"
+                                    aria-label={`Aumentar ${item.productName}`}
+                                  >
+                                    <Plus className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-1 py-1 text-right text-[10px] text-muted-foreground">
+                                {formatCurrency(item.unitPrice)}
+                              </td>
+                              <td className="px-2 py-1 text-right text-[11px] font-bold">
+                                {formatCurrency(item.subtotal)}
+                              </td>
+                              <td className="py-1 text-center">
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  onClick={() => changeItemQuantity(item.id, 0)}
+                                  className="text-muted-foreground hover:text-danger disabled:opacity-50"
+                                  aria-label={`Remover ${item.productName}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
-                  <div>
-                    <Label htmlFor="comanda-observation">Observação da comanda</Label>
-                    <div className="flex gap-2">
-                      <Textarea
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-[180px] flex-1">
+                      <Label htmlFor="comanda-observation" className="text-[10px]">
+                        Observação
+                      </Label>
+                      <Input
                         id="comanda-observation"
                         value={observation}
                         onChange={(e) => setObservation(e.target.value)}
-                        rows={2}
+                        placeholder="Ex.: sem cebola, alérgico..."
+                        className="h-9 text-xs"
                         maxLength={500}
-                        placeholder="Ex.: cliente alérgico, trocar acompanhamento..."
                       />
-                      <Button variant="outline" onClick={saveObservation} disabled={pending}>
-                        Salvar
-                      </Button>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={saveObservation}
+                      disabled={pending}
+                      className="h-9"
+                    >
+                      Salvar
+                    </Button>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                    <Button variant="outline" onClick={() => setTransferOpen(true)}>
-                      <ArrowRightLeft className="h-4 w-4" /> Transferir
-                    </Button>
-                    <Button variant="danger" onClick={cancel} disabled={pending}>
-                      <X className="h-4 w-4" /> Cancelar comanda
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTransferOpen(true)}
+                      disabled={pending}
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" /> Transferir
                     </Button>
                     <Button
-                      className="ml-auto"
-                      onClick={() => {
-                        setPaymentMethod("CASH");
-                        setPaidNow(canConfirmPayments);
-                        setCloseOpen(true);
-                      }}
-                      disabled={pending || selected.items.length === 0}
+                      size="sm"
+                      variant="danger"
+                      onClick={cancel}
+                      disabled={pending}
                     >
-                      <Check className="h-4 w-4" /> Fechar comanda
+                      <X className="h-3.5 w-3.5" /> Cancelar
                     </Button>
+                    {selected.items.length > 0 ? (
+                      <Link
+                        href={`/admin/pdv?comanda=${selected.id}`}
+                        className="ml-auto inline-flex h-8 items-center gap-2 rounded-xl bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                        title="Pagamento e troco no PDV"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Fechar comanda
+                      </Link>
+                    ) : (
+                      <Button size="sm" className="ml-auto" disabled title="Adicione itens para fechar">
+                        <Check className="h-3.5 w-3.5" /> Fechar comanda
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Adicionar itens</CardTitle>
+                <CardHeader className="gap-1.5 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <ShoppingCart className="h-4 w-4 text-brand-600" /> Adicionar itens
+                  </CardTitle>
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Buscar produto..."
-                      className="pl-10"
+                      className="h-9 pl-9 text-xs"
                     />
                   </div>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
+                  <div className="flex flex-wrap gap-1">
                     {categories.map((item) => (
                       <button
                         key={item}
                         type="button"
                         onClick={() => setCategory(item)}
                         className={cn(
-                          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                          "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
                           category === item
                             ? "border-brand-500 bg-brand-50 text-brand-700"
                             : "border-border text-muted-foreground hover:bg-muted"
@@ -626,76 +551,32 @@ export function ComandasPanel({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredProducts.map((product) => (
                       <button
                         key={product.id}
                         type="button"
+                        disabled={pending}
                         onClick={() => addProduct(product)}
-                        className="flex min-h-[80px] flex-col justify-between rounded-xl border border-border p-3 text-left transition-colors hover:border-brand-400 hover:bg-brand-50"
+                        className="flex min-h-[56px] flex-col justify-between rounded-lg border border-border p-2 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 disabled:opacity-60"
                       >
-                        <span className="line-clamp-2 text-sm font-semibold">{product.name}</span>
-                        <span className="mt-1 flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{product.categoryName}</span>
-                          <span className="font-bold text-brand-700">{formatCurrency(product.price)}</span>
+                        <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
+                          {product.name}
+                        </span>
+                        <span className="mt-0.5 flex items-center justify-between gap-1 text-[10px]">
+                          <span className="truncate text-muted-foreground">{product.categoryName}</span>
+                          <span className="shrink-0 font-bold text-brand-700">
+                            {formatCurrency(product.price)}
+                          </span>
                         </span>
                         {product.optionGroups.length > 0 && (
-                          <span className="text-[10px] font-medium text-brand-700">Montar ▸</span>
+                          <span className="text-[9px] font-medium text-brand-700">Montar ▸</span>
                         )}
                       </button>
                     ))}
                   </div>
                 </CardContent>
               </Card>
-
-              {cart.length > 0 && (
-                <Card className="border-brand-300">
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <ShoppingCart className="h-4 w-4 text-brand-600" /> Itens para adicionar
-                    </CardTitle>
-                    <Button size="sm" variant="ghost" onClick={() => setCart([])}>
-                      Limpar
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {cart.map((item) => (
-                      <div key={item.key} className="flex items-center justify-between gap-2 rounded-xl border border-border p-2.5">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">{item.name}</p>
-                          {item.options.length > 0 && (
-                            <p className="truncate text-[11px] text-brand-700">{describeOptions(item.options)}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => changeCartQuantity(item.key, -1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="w-5 text-center text-sm font-bold">{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => changeCartQuantity(item.key, 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between border-t border-border pt-2">
-                      <span className="text-sm text-muted-foreground">{formatCurrency(cartSubtotal)}</span>
-                      <Button onClick={addItems} disabled={pending}>
-                        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        Adicionar à comanda
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </>
           )}
         </div>
@@ -706,7 +587,7 @@ export function ComandasPanel({
           product={configuring}
           groups={configuring.optionGroups}
           onAdd={(choices, unitPrice) => {
-            addItem(configuring, choices, unitPrice);
+            addProductToComanda(configuring, choices, unitPrice);
             setConfiguring(null);
           }}
           onClose={() => setConfiguring(null)}
@@ -814,66 +695,6 @@ export function ComandasPanel({
             </select>
             <Button className="mt-4 w-full" onClick={transfer} disabled={pending || !targetTableId}>
               Confirmar transferência
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {closeOpen && selected && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-3xl bg-background p-5 shadow-2xl sm:rounded-3xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Fechar comanda #{String(selected.number).padStart(4, "0")}</h2>
-              <button
-                type="button"
-                onClick={() => setCloseOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Total da comanda: <strong className="text-foreground">{formatCurrency(selected.total)}</strong>.
-              O fechamento cria o pedido e libera a mesa.
-            </p>
-            <Label>Forma de pagamento</Label>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {PAYMENTS.map((payment) => (
-                <button
-                  key={payment.value}
-                  type="button"
-                  onClick={() => setPaymentMethod(payment.value)}
-                  className={cn(
-                    "flex flex-col items-center gap-1 rounded-xl border py-2.5 text-xs font-medium",
-                    paymentMethod === payment.value
-                      ? "border-brand-500 bg-brand-50 text-brand-700"
-                      : "border-border text-muted-foreground"
-                  )}
-                >
-                  {payment.icon} {payment.label}
-                </button>
-              ))}
-            </div>
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-border p-3">
-              <input
-                type="checkbox"
-                checked={paidNow}
-                disabled={!canConfirmPayments}
-                onChange={(e) => setPaidNow(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#FF9800]"
-              />
-              <span>
-                <span className="block text-sm font-medium">Pagamento recebido agora</span>
-                <span className="block text-[11px] text-muted-foreground">
-                  {canConfirmPayments
-                    ? "Registra entrada no caixa e pedido como pago."
-                    : "Peça ao caixa para registrar o recebimento."}
-                </span>
-              </span>
-            </label>
-            <Button className="mt-4 w-full" size="lg" onClick={close} disabled={pending}>
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Fechar e gerar pedido
             </Button>
           </div>
         </div>

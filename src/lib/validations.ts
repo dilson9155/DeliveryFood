@@ -188,6 +188,7 @@ export const posOrderSchema = z.object({
   items: z.array(orderItemInputSchema).min(1, "Carrinho vazio"),
   paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
   paidNow: z.boolean().optional().default(false),
+  amountReceived: z.number().finite().nonnegative().optional(),
   observation: z.string().max(500).optional().nullable(),
 });
 
@@ -234,4 +235,5 @@ export const closeComandaSchema = z.object({
   comandaId: z.string().min(1),
   paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
   paidNow: z.boolean().optional().default(false),
+  amountReceived: z.number().finite().nonnegative().optional(),
 });

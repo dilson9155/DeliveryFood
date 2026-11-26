@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { can, type SessionUser } from "@/lib/permissions";
-import { UserType } from "@prisma/client";
-import { PosPanel } from "@/components/admin/pos-panel";
+import { ComandaStatus, UserType } from "@prisma/client";
+import { PosPanel, type PosComanda } from "@/components/admin/pos-panel";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "PDV" };
 
-export default async function PosPage() {
+export default async function PosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ comanda?: string }>;
+}) {
   const session = (await auth()) as unknown as {
     user?: { id: string; userType: UserType; role: SessionUser["role"] };
   };
@@ -21,7 +25,9 @@ export default async function PosPage() {
     : null;
   const canConfirmPayments = can(employee, "payments.confirm");
 
-  const [products, customers] = await Promise.all([
+  const { comanda: comandaId } = await searchParams;
+
+  const [products, customers, comandaRow] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
       orderBy: [{ order: "asc" }, { name: "asc" }],
@@ -48,47 +54,93 @@ export default async function PosPage() {
         _count: { select: { orders: true } },
       },
     }),
+    comandaId
+      ? prisma.comanda.findFirst({
+          where: { id: comandaId, status: ComandaStatus.OPEN },
+          include: {
+            table: { select: { label: true, number: true } },
+            customer: { select: { name: true, phone: true } },
+            items: { orderBy: { createdAt: "asc" }, include: { options: true } },
+          },
+        })
+      : Promise.resolve(null),
   ]);
 
+  const comanda: PosComanda | null = comandaRow
+    ? {
+        id: comandaRow.id,
+        number: comandaRow.number,
+        tableName: comandaRow.table.label ?? `Mesa ${comandaRow.table.number}`,
+        customerName: comandaRow.customerName ?? comandaRow.customer?.name ?? null,
+        customerPhone: comandaRow.customer?.phone ?? null,
+        observation: comandaRow.observation,
+        openedAt: comandaRow.openedAt.toISOString(),
+        items: comandaRow.items.map((item) => ({
+          id: item.id,
+          productId: item.productId ?? "",
+          productName: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          options: item.options.map((option) => ({
+            groupId: option.groupId ?? "",
+            optionId: option.optionId ?? "",
+            groupName: option.groupName,
+            optionName: option.optionName,
+            quantity: option.quantity,
+            unitPrice: option.unitPrice,
+          })),
+        })),
+      }
+    : null;
+
   return (
-    <PosPanel
-      canConfirmPayments={canConfirmPayments}
-      products={JSON.parse(
-        JSON.stringify(
-          products.map((product) => ({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            categoryName: product.category.name,
-            optionGroups: product.optionGroups.map((group) => ({
-              id: group.id,
-              name: group.name,
-              description: group.description,
-              minQuantity: group.minQuantity,
-              maxQuantity: group.maxQuantity,
-              required: group.required,
-              order: group.order,
-              options: group.options.map((option) => ({
-                id: option.id,
-                name: option.name,
-                price: option.price,
-                order: option.order,
+    <div className="space-y-3">
+      {comandaId && !comanda && (
+        <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+          A comanda solicitada não está mais aberta. Uma nova venda foi iniciada no balcão.
+        </div>
+      )}
+      <PosPanel
+        canConfirmPayments={canConfirmPayments}
+        comanda={JSON.parse(JSON.stringify(comanda)) as PosComanda | null}
+        products={JSON.parse(
+          JSON.stringify(
+            products.map((product) => ({
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              categoryName: product.category.name,
+              optionGroups: product.optionGroups.map((group) => ({
+                id: group.id,
+                name: group.name,
+                description: group.description,
+                minQuantity: group.minQuantity,
+                maxQuantity: group.maxQuantity,
+                required: group.required,
+                order: group.order,
+                options: group.options.map((option) => ({
+                  id: option.id,
+                  name: option.name,
+                  price: option.price,
+                  order: option.order,
+                })),
               })),
-            })),
-          }))
-        )
-      )}
-      customers={JSON.parse(
-        JSON.stringify(
-          customers.map((customer) => ({
-            id: customer.id,
-            name: customer.name,
-            phone: customer.phone,
-            email: customer.email,
-            ordersCount: customer._count.orders,
-          }))
-        )
-      )}
-    />
+            }))
+          )
+        )}
+        customers={JSON.parse(
+          JSON.stringify(
+            customers.map((customer) => ({
+              id: customer.id,
+              name: customer.name,
+              phone: customer.phone,
+              email: customer.email,
+              ordersCount: customer._count.orders,
+            }))
+          )
+        )}
+      />
+    </div>
   );
 }

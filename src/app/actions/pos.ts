@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { can, type SessionUser } from "@/lib/permissions";
 import { posOrderSchema, quickCustomerSchema } from "@/lib/validations";
 import { priceItems } from "@/lib/order-pricing";
+import { formatCurrency, roundMoney } from "@/lib/format";
 import { sendOrderReceivedWhatsApp } from "@/lib/notify";
 import {
   CashMovementType,
@@ -34,7 +35,7 @@ export type PosActionResult =
   | { ok: false; error: string; existing?: PosCustomer };
 
 export type PosOrderResult =
-  | { ok: true; orderId: string; number: number; total: number }
+  | { ok: true; orderId: string; number: number; total: number; change: number }
   | { ok: false; error: string };
 
 type PosInput = {
@@ -42,6 +43,7 @@ type PosInput = {
   paymentMethod: PaymentMethod;
   customerId: string;
   paidNow?: boolean;
+  amountReceived?: number;
   observation?: string | null;
 };
 
@@ -228,9 +230,25 @@ export async function createPosOrderAction(input: PosInput): Promise<PosOrderRes
   const orderItems = priced.items;
   const total = priced.total;
 
+  let cashChange = 0;
+  if (paidNow && data.paymentMethod === "CASH") {
+    const received = roundMoney(data.amountReceived ?? 0);
+    if (data.amountReceived === undefined || received < total) {
+      return {
+        ok: false,
+        error: `Valor recebido insuficiente. O total é ${formatCurrency(total)}.`,
+      };
+    }
+    cashChange = roundMoney(received - total);
+  }
+
   const initialStatus = paidNow ? OrderStatus.READY : OrderStatus.NEW;
   const initialPaymentStatus = paidNow ? PaymentStatus.CONFIRMED : PaymentStatus.PENDING;
-  const observation = data.observation?.trim() || null;
+  const paymentNote =
+    paidNow && data.paymentMethod === "CASH"
+      ? `Valor recebido: ${formatCurrency(total + cashChange)}. Troco: ${formatCurrency(cashChange)}.`
+      : null;
+  const observation = [data.observation?.trim(), paymentNote].filter(Boolean).join(" — ").slice(0, 500) || null;
   const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
   const order = await prisma.$transaction(async (tx) => {
@@ -287,7 +305,9 @@ export async function createPosOrderAction(input: PosInput): Promise<PosOrderRes
           cashRegisterId: registerId,
           type: CashMovementType.INCOME,
           amount: total,
-          description: `PDV — pagamento pedido #${created.number}`,
+          description: `PDV — pagamento pedido #${created.number}${
+            cashChange > 0 ? ` — troco ${formatCurrency(cashChange)}` : ""
+          }`,
           paymentMethod: data.paymentMethod,
           orderId: created.id,
           userId: user.id,
@@ -325,7 +345,9 @@ export async function createPosOrderAction(input: PosInput): Promise<PosOrderRes
     action: "CREATE",
     resource: "order",
     entityId: order.id,
-    details: `PDV — pedido #${order.number} — ${currency.format(order.total)}${paidNow ? " (pago)" : " (a pagar)"}`,
+    details: `PDV — pedido #${order.number} — ${currency.format(order.total)}${paidNow ? " (pago)" : " (a pagar)"}${
+      cashChange > 0 ? ` — troco ${formatCurrency(cashChange)}` : ""
+    }`,
   });
 
   await sendOrderReceivedWhatsApp({
@@ -341,5 +363,5 @@ export async function createPosOrderAction(input: PosInput): Promise<PosOrderRes
   revalidatePath("/admin/caixa");
   revalidatePath("/admin/clientes");
 
-  return { ok: true, orderId: order.id, number: order.number, total: order.total };
+  return { ok: true, orderId: order.id, number: order.number, total: order.total, change: cashChange };
 }

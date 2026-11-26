@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { can, type SessionUser } from "@/lib/permissions";
 import { priceItems } from "@/lib/order-pricing";
-import { roundMoney } from "@/lib/format";
+import { formatCurrency, roundMoney } from "@/lib/format";
 import { sendOrderReceivedWhatsApp } from "@/lib/notify";
 import {
   addComandaItemsSchema,
@@ -32,7 +32,7 @@ type OpenResult =
   | { ok: true; id: string; number: number; tableLabel: string }
   | { ok: false; error: string };
 type CloseResult =
-  | { ok: true; orderId: string; orderNumber: number; total: number }
+  | { ok: true; orderId: string; orderNumber: number; total: number; change: number }
   | { ok: false; error: string };
 
 function employeeOrError(session: unknown): SessionUser | null {
@@ -386,6 +386,7 @@ export async function closeComandaAction(input: {
   comandaId: string;
   paymentMethod: PaymentMethod;
   paidNow?: boolean;
+  amountReceived?: number;
 }): Promise<CloseResult> {
   const session = await auth();
   const user = employeeOrError(session);
@@ -425,11 +426,28 @@ export async function closeComandaAction(input: {
   }
 
   const total = roundMoney(comanda.items.reduce((sum, item) => sum + item.subtotal, 0));
+
+  let cashChange = 0;
+  if (paidNow && parsed.data.paymentMethod === "CASH") {
+    const received = roundMoney(parsed.data.amountReceived ?? 0);
+    if (parsed.data.amountReceived === undefined || received < total) {
+      return {
+        ok: false,
+        error: `Valor recebido insuficiente. O total é ${formatCurrency(total)}.`,
+      };
+    }
+    cashChange = roundMoney(received - total);
+  }
+
   const tableLabel = comanda.table.label ?? `Mesa ${comanda.table.number}`;
   const header = `Comanda #${comanda.number} · ${tableLabel}${
     comanda.customerName ? ` · Cliente: ${comanda.customerName}` : ""
   }`;
-  const observation = [header, comanda.observation?.trim()].filter(Boolean).join(" — ").slice(0, 500);
+  const paymentNote =
+    paidNow && parsed.data.paymentMethod === "CASH"
+      ? `Valor recebido: ${formatCurrency(total + cashChange)}. Troco: ${formatCurrency(cashChange)}.`
+      : null;
+  const observation = [header, comanda.observation?.trim(), paymentNote].filter(Boolean).join(" — ").slice(0, 500);
   const initialStatus = paidNow ? OrderStatus.READY : OrderStatus.NEW;
   const initialPaymentStatus = paidNow ? PaymentStatus.CONFIRMED : PaymentStatus.PENDING;
   const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -495,7 +513,9 @@ export async function closeComandaAction(input: {
           cashRegisterId: registerId,
           type: CashMovementType.INCOME,
           amount: total,
-          description: `${tableLabel} — comanda #${comanda.number} — pedido #${created.number}`,
+          description: `${tableLabel} — comanda #${comanda.number} — pedido #${created.number}${
+            cashChange > 0 ? ` — troco ${formatCurrency(cashChange)}` : ""
+          }`,
           paymentMethod: parsed.data.paymentMethod,
           orderId: created.id,
           userId: user.id,
@@ -546,7 +566,9 @@ export async function closeComandaAction(input: {
     action: "UPDATE",
     resource: "comanda",
     entityId: comanda.id,
-    details: `Comanda #${comanda.number} fechada — pedido #${order.number} — ${currency.format(total)}${paidNow ? " (pago)" : " (a pagar)"}`,
+    details: `Comanda #${comanda.number} fechada — pedido #${order.number} — ${currency.format(total)}${paidNow ? " (pago)" : " (a pagar)"}${
+      cashChange > 0 ? ` — troco ${formatCurrency(cashChange)}` : ""
+    }`,
   });
 
   await sendOrderReceivedWhatsApp({
@@ -562,5 +584,5 @@ export async function closeComandaAction(input: {
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin/caixa");
   revalidatePath("/admin/mesas");
-  return { ok: true, orderId: order.id, orderNumber: order.number, total };
+  return { ok: true, orderId: order.id, orderNumber: order.number, total, change: cashChange };
 }

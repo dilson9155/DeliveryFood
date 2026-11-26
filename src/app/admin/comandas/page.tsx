@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { can, type SessionUser } from "@/lib/permissions";
 import { ComandasPanel } from "@/components/admin/comandas-panel";
 import { ComandaStatus, UserType } from "@prisma/client";
 
@@ -9,17 +7,6 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Comandas" };
 
 export default async function ComandasPage() {
-  const session = (await auth()) as unknown as {
-    user?: { id: string; userType: UserType; role: SessionUser["role"] };
-  };
-  const employee: SessionUser | null = session?.user
-    ? {
-        id: session.user.id,
-        userType: session.user.userType,
-        role: session.user.role,
-      }
-    : null;
-
   const [tables, comandas, products, customers] = await Promise.all([
     prisma.restaurantTable.findMany({
       orderBy: { number: "asc" },
@@ -126,7 +113,6 @@ export default async function ComandasPage() {
       comandas={JSON.parse(JSON.stringify(comandaViews))}
       products={JSON.parse(JSON.stringify(productViews))}
       customers={JSON.parse(JSON.stringify(customers))}
-      canConfirmPayments={can(employee, "payments.confirm")}
     />
   );
 }
