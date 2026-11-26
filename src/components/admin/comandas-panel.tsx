@@ -8,6 +8,7 @@ import {
   Check,
   CreditCard,
   LayoutGrid,
+  List,
   Loader2,
   Minus,
   Plus,
@@ -109,6 +110,7 @@ export function ComandasPanel({
   });
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
+  const [showProductList, setShowProductList] = useState(false);
   const [configuring, setConfiguring] = useState<ProductView | null>(null);
   const [observation, setObservation] = useState(initialComandas[0]?.observation ?? "");
   const [transferOpen, setTransferOpen] = useState(false);
@@ -133,23 +135,27 @@ export function ComandasPanel({
     () => ["Todos", ...new Set(products.map((p) => p.categoryName))],
     [products]
   );
-  const filteredProducts = useMemo(() => {
-    const term = normalize(query.trim());
-    return products.filter((product) => {
-      if (category !== "Todos" && product.categoryName !== category) return false;
-      if (!term) return true;
-      return (
-        normalize(product.name).includes(term) ||
-        normalize(product.categoryName).includes(term)
-      );
-    });
-  }, [products, query, category]);
+  const term = normalize(query.trim());
+  const visibleProducts = useMemo(() => {
+    if (!term && !showProductList) return [];
+    return products
+      .filter((product) => {
+        if (category !== "Todos" && product.categoryName !== category) return false;
+        if (!term) return true;
+        return (
+          normalize(product.name).includes(term) ||
+          normalize(product.categoryName).includes(term)
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [products, term, category, showProductList]);
 
-  function addProductToComanda(
-    product: ProductView,
-    options: OptionChoice[],
-    unitPrice: number
-  ) {
+  function toggleProductList(checked: boolean) {
+    setShowProductList(checked);
+    if (!checked) setCategory("Todos");
+  }
+
+  function addProductToComanda(product: ProductView, options: OptionChoice[]) {
     if (!selected || pending) return;
     startTransition(async () => {
       const result = await addComandaItemsAction({
@@ -171,6 +177,7 @@ export function ComandasPanel({
         return;
       }
       show("success", `${product.name} adicionado.`);
+      setQuery("");
       router.refresh();
     });
   }
@@ -180,7 +187,7 @@ export function ComandasPanel({
       setConfiguring(product);
       return;
     }
-    addProductToComanda(product, [], product.price);
+    addProductToComanda(product, []);
   }
 
   function changeItemQuantity(itemId: string, quantity: number) {
@@ -520,61 +527,82 @@ export function ComandasPanel({
 
               <Card>
                 <CardHeader className="gap-1.5 pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <ShoppingCart className="h-4 w-4 text-brand-600" /> Adicionar itens
+                  <CardTitle className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 text-brand-600" /> Adicionar itens
+                    </span>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={showProductList}
+                        onChange={(e) => toggleProductList(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-[#FF9800]"
+                      />
+                      <List className="h-3.5 w-3.5" /> Listar produtos
+                    </label>
                   </CardTitle>
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Buscar produto..."
+                      placeholder="Digite o nome do produto..."
                       className="h-9 pl-9 text-xs"
                     />
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {categories.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setCategory(item)}
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
-                          category === item
-                            ? "border-brand-500 bg-brand-50 text-brand-700"
-                            : "border-border text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
+                  {showProductList && (
+                    <div className="flex flex-wrap gap-1">
+                      {categories.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setCategory(item)}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            category === item
+                              ? "border-brand-500 bg-brand-50 text-brand-700"
+                              : "border-border text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        disabled={pending}
-                        onClick={() => addProduct(product)}
-                        className="flex min-h-[56px] flex-col justify-between rounded-lg border border-border p-2 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 disabled:opacity-60"
-                      >
-                        <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
-                          {product.name}
-                        </span>
-                        <span className="mt-0.5 flex items-center justify-between gap-1 text-[10px]">
-                          <span className="truncate text-muted-foreground">{product.categoryName}</span>
-                          <span className="shrink-0 font-bold text-brand-700">
-                            {formatCurrency(product.price)}
+                  {visibleProducts.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border py-3 text-center text-xs text-muted-foreground">
+                      {term
+                        ? "Nenhum produto encontrado."
+                        : "Digite para buscar ou marque Listar produtos."}
+                    </p>
+                  ) : (
+                    <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      {visibleProducts.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          disabled={pending}
+                          onClick={() => addProduct(product)}
+                          className="flex min-h-[56px] flex-col justify-between rounded-lg border border-border p-2 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 disabled:opacity-60"
+                        >
+                          <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
+                            {product.name}
                           </span>
-                        </span>
-                        {product.optionGroups.length > 0 && (
-                          <span className="text-[9px] font-medium text-brand-700">Montar ▸</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                          <span className="mt-0.5 flex items-center justify-between gap-1 text-[10px]">
+                            <span className="truncate text-muted-foreground">{product.categoryName}</span>
+                            <span className="shrink-0 font-bold text-brand-700">
+                              {formatCurrency(product.price)}
+                            </span>
+                          </span>
+                          {product.optionGroups.length > 0 && (
+                            <span className="text-[9px] font-medium text-brand-700">Montar ▸</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>
@@ -586,8 +614,8 @@ export function ComandasPanel({
         <ProductConfigurator
           product={configuring}
           groups={configuring.optionGroups}
-          onAdd={(choices, unitPrice) => {
-            addProductToComanda(configuring, choices, unitPrice);
+          onAdd={(choices) => {
+            addProductToComanda(configuring, choices);
             setConfiguring(null);
           }}
           onClose={() => setConfiguring(null)}

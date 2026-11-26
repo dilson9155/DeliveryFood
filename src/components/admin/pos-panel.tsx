@@ -7,6 +7,7 @@ import {
   Banknote,
   Check,
   CreditCard,
+  List,
   Loader2,
   Minus,
   PackageCheck,
@@ -32,7 +33,7 @@ import {
   setComandaObservationAction,
 } from "@/app/actions/comandas";
 import { createPosOrderAction, quickCreateCustomerAction } from "@/app/actions/pos";
-import { cn, formatCurrency, formatPhone, roundMoney } from "@/lib/format";
+import { cn, formatCurrency, formatPhone, formatTime, roundMoney } from "@/lib/format";
 import {
   cartItemKey,
   describeOptions,
@@ -101,6 +102,41 @@ const PAYMENTS: { value: PaymentMethod; label: string; icon: React.ReactNode }[]
 ];
 
 const QUICK_ADDS = [5, 10, 20, 50, 100];
+
+function Step({
+  number,
+  label,
+  active,
+  done,
+}: {
+  number: number;
+  label: string;
+  active: boolean;
+  done: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+        active
+          ? "bg-[#0F0D0C] text-white"
+          : done
+            ? "bg-success/15 text-success"
+            : "bg-muted text-muted-foreground"
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center rounded-full text-[9px]",
+          active ? "bg-white/20" : done ? "bg-success/25" : "bg-background"
+        )}
+      >
+        {done ? <Check className="h-2.5 w-2.5" /> : number}
+      </span>
+      {label}
+    </span>
+  );
+}
 
 function normalize(value: string) {
   return value
@@ -180,6 +216,7 @@ export function PosPanel({
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
+  const [showProductList, setShowProductList] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(() =>
     comanda ? itemsFromComanda(comanda) : []
   );
@@ -217,16 +254,24 @@ export function PosPanel({
     [products]
   );
 
-  const filteredProducts = useMemo(() => {
-    const term = normalize(query.trim());
-    return products.filter((product) => {
-      if (category !== "Todos" && product.categoryName !== category) return false;
-      if (!term) return true;
-      return (
-        normalize(product.name).includes(term) || normalize(product.categoryName).includes(term)
-      );
-    });
-  }, [products, query, category]);
+  const term = normalize(query.trim());
+  const visibleProducts = useMemo(() => {
+    if (!term && !showProductList) return [];
+    return products
+      .filter((product) => {
+        if (category !== "Todos" && product.categoryName !== category) return false;
+        if (!term) return true;
+        return (
+          normalize(product.name).includes(term) || normalize(product.categoryName).includes(term)
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [products, term, category, showProductList]);
+
+  function toggleProductList(checked: boolean) {
+    setShowProductList(checked);
+    if (!checked) setCategory("Todos");
+  }
 
   const filteredCustomers = useMemo(() => {
     const term = normalize(customerSearch.trim());
@@ -262,6 +307,7 @@ export function PosPanel({
     unitPrice: number
   ) {
     setSuccess(null);
+    setQuery("");
     if (comanda) {
       setCart((prev) => [
         ...prev,
@@ -371,6 +417,11 @@ export function PosPanel({
   }
 
   function finalize() {
+    if (!comanda && !selectedCustomer) {
+      show("error", "Selecione ou cadastre o cliente antes de finalizar.");
+      openCustomerModal();
+      return;
+    }
     if (cart.length === 0) {
       show("error", "Adicione itens antes de finalizar.");
       return;
@@ -378,11 +429,6 @@ export function PosPanel({
     const received = showChange ? parseAmount(amountReceived) ?? undefined : undefined;
     if (showChange && (received === undefined || received < subtotal)) {
       show("error", "Informe um valor recebido maior ou igual ao total.");
-      return;
-    }
-    if (!comanda && !selectedCustomer) {
-      show("error", "Selecione ou cadastre um cliente para finalizar.");
-      openCustomerModal();
       return;
     }
 
@@ -458,6 +504,7 @@ export function PosPanel({
   function selectCustomer(customer: PosCustomerView) {
     setSelectedCustomer(customer);
     setCustomerOpen(false);
+    focusSearch();
   }
 
   function saveCustomer() {
@@ -503,8 +550,8 @@ export function PosPanel({
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {comanda
-              ? "Edite os itens, receba o pagamento e informe o troco. Tudo salvo na comanda."
-              : "Venda rápida, sem entrega. Busque um produto e pressione Enter."}
+              ? "Cliente da comanda definido. Edite os itens, receba e informe o troco."
+              : "Escolha o cliente, adicione os produtos e só depois finalize."}
           </p>
         </div>
         <Link
@@ -554,11 +601,88 @@ export function PosPanel({
         </Card>
       )}
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Step
+          number={1}
+          label="Cliente"
+          active={!comanda && !selectedCustomer}
+          done={Boolean(comanda || selectedCustomer)}
+        />
+        <span className="text-[10px] text-muted-foreground">→</span>
+        <Step
+          number={2}
+          label="Produtos"
+          active={(Boolean(comanda) || Boolean(selectedCustomer)) && cart.length === 0}
+          done={cart.length > 0}
+        />
+        <span className="text-[10px] text-muted-foreground">→</span>
+        <Step number={3} label="Finalizar" active={cart.length > 0} done={false} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-brand-200 bg-brand-50/60 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0F0D0C] text-[11px] font-bold text-white">
+            {comanda ? String(comanda.number).padStart(4, "0") : <UserRound className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {comanda ? "Comanda" : "Cliente da venda"}
+            </p>
+            <p className="truncate text-sm font-bold">
+              {comanda
+                ? `${comanda.customerName || "Consumidor final"} · ${comanda.tableName}`
+                : selectedCustomer
+                  ? selectedCustomer.name
+                  : "Selecione ou cadastre o cliente"}
+            </p>
+            <p className="truncate text-[10px] text-muted-foreground">
+              {comanda
+                ? `Comanda #${String(comanda.number).padStart(4, "0")} · aberta às ${formatTime(comanda.openedAt)}`
+                : selectedCustomer
+                  ? `${selectedCustomer.phone ? formatPhone(selectedCustomer.phone) : selectedCustomer.email || "Sem contato"} · ${selectedCustomer.ordersCount} pedido(s)`
+                  : "Escolha o cliente antes de adicionar os produtos."}
+            </p>
+          </div>
+        </div>
+        {!comanda && (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant={selectedCustomer ? "outline" : "default"}
+              onClick={openCustomerModal}
+            >
+              <Search className="h-4 w-4" /> {selectedCustomer ? "Trocar cliente" : "Buscar cliente"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                openCustomerModal();
+                setCreatingCustomer(true);
+              }}
+            >
+              <UserPlus className="h-4 w-4" /> Cadastro rápido
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_330px_320px]">
         {/* Produtos */}
         <Card className="min-w-0">
           <CardHeader className="gap-2 pb-2">
-            <CardTitle className="text-base">Produtos</CardTitle>
+            <CardTitle className="flex items-center justify-between gap-2 text-base">
+              <span>Produtos</span>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={showProductList}
+                  onChange={(e) => toggleProductList(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-[#FF9800]"
+                />
+                <List className="h-3.5 w-3.5" /> Listar produtos
+              </label>
+            </CardTitle>
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -567,41 +691,45 @@ export function PosPanel({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && filteredProducts.length > 0) {
+                  if (e.key === "Enter" && visibleProducts.length > 0) {
                     e.preventDefault();
-                    addProduct(filteredProducts[0]);
+                    addProduct(visibleProducts[0]);
                   }
                 }}
-                placeholder="Buscar produto (nome ou categoria)..."
+                placeholder="Digite o nome do produto..."
                 className="h-10 pl-9 text-sm"
               />
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setCategory(item)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                    category === item
-                      ? "border-brand-500 bg-brand-50 text-brand-700"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+            {showProductList && (
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCategory(item)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                      category === item
+                        ? "border-brand-500 bg-brand-50 text-brand-700"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            {filteredProducts.length === 0 ? (
+            {visibleProducts.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum produto encontrado.
+                {term
+                  ? "Nenhum produto encontrado."
+                  : "Digite o nome do produto ou marque Listar produtos."}
               </p>
             ) : (
               <div className="grid gap-1.5 sm:grid-cols-2 2xl:grid-cols-3">
-                {filteredProducts.map((product) => (
+                {visibleProducts.map((product) => (
                   <button
                     key={product.id}
                     type="button"
@@ -848,7 +976,14 @@ export function PosPanel({
               <Button
                 size="lg"
                 className="h-12 w-full text-sm"
-                disabled={pending || cart.length === 0}
+                disabled={pending || cart.length === 0 || (!comanda && !selectedCustomer)}
+                title={
+                  !comanda && !selectedCustomer
+                    ? "Selecione o cliente para finalizar"
+                    : cart.length === 0
+                      ? "Adicione produtos para finalizar"
+                      : undefined
+                }
                 onClick={finalize}
               >
                 {pending ? (
@@ -865,75 +1000,17 @@ export function PosPanel({
                   É necessário ter caixa aberto para registrar o recebimento.
                 </p>
               )}
-            </CardContent>
-          </Card>
-
-          {comanda ? (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <UserRound className="h-4 w-4 text-brand-600" /> Cliente da comanda
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm font-semibold">{comanda.customerName || "Consumidor final"}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {comanda.customerPhone
-                    ? formatPhone(comanda.customerPhone)
-                    : "Sem telefone informado"}
-                </p>
-                <button type="button" onClick={resetSale} className="mt-2 text-[11px] text-brand-700 underline">
+              {comanda && (
+                <button
+                  type="button"
+                  onClick={resetSale}
+                  className="w-full text-center text-[10px] text-brand-700 underline"
+                >
                   Recarregar itens salvos
                 </button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <UserRound className="h-4 w-4 text-brand-600" /> Cliente
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {selectedCustomer ? (
-                  <div className="flex items-start justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50 p-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold">{selectedCustomer.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {selectedCustomer.phone
-                          ? formatPhone(selectedCustomer.phone)
-                          : selectedCustomer.email || "Sem contato"}
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {selectedCustomer.ordersCount} pedido(s)
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCustomer(null)}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="Trocar cliente"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="rounded-xl border border-dashed border-border p-2.5 text-center text-[11px] text-muted-foreground">
-                    Nenhum cliente selecionado
-                  </p>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 w-full"
-                  onClick={openCustomerModal}
-                >
-                  <Search className="h-4 w-4" />
-                  {selectedCustomer ? "Buscar outro" : "Buscar ou cadastrar"}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -962,7 +1039,7 @@ export function PosPanel({
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="text-lg font-bold">
-                  {creatingCustomer ? "Cadastro rápido" : "Buscar cliente"}
+                  {creatingCustomer ? "Cadastro rápido" : "1. Buscar cliente"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {creatingCustomer
@@ -1082,7 +1159,7 @@ export function PosPanel({
                 </div>
                 <div className="border-t border-border p-5">
                   <Button className="w-full" onClick={() => setCreatingCustomer(true)}>
-                    <UserPlus className="h-4 w-4" /> Cadastrar novo cliente
+                    <UserPlus className="h-4 w-4" /> Cadastro rápido
                   </Button>
                 </div>
               </div>
