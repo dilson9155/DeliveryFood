@@ -222,7 +222,7 @@ export async function confirmPaymentAction(orderId: string): Promise<ActionResul
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { payment: true },
+    include: { payment: true, selfServiceSale: true },
   });
   if (!order || !order.payment) {
     return { ok: false, error: "Pedido não encontrado." };
@@ -276,6 +276,14 @@ export async function confirmPaymentAction(orderId: string): Promise<ActionResul
       where: { id: order.id },
       data: { paymentStatus: PaymentStatus.CONFIRMED },
     }),
+    ...(order.selfServiceSale
+      ? [
+          prisma.selfServiceSale.update({
+            where: { id: order.selfServiceSale.id },
+            data: { paidNow: true },
+          }),
+        ]
+      : []),
   ]);
 
   await prisma.notification.create({

@@ -192,6 +192,90 @@ export const posOrderSchema = z.object({
   observation: z.string().max(500).optional().nullable(),
 });
 
+const menuDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida");
+
+/** Cardápio do dia: uma data, refeições completas, tamanhos e preços. */
+export const dailyMenuSchema = z.object({
+  date: menuDateSchema,
+  title: z.string().max(120).optional().nullable(),
+  active: z.boolean().optional().default(true),
+});
+
+export const dailyMenuMealSchema = z.object({
+  id: z.string().optional(),
+  menuId: z.string().min(1),
+  name: z.string().min(2, "Informe o nome da refeição").max(120),
+  description: z.string().max(500).optional().nullable(),
+  imageUrl: z.string().max(2_000_000).optional().nullable(),
+  availableQty: z.number().int().min(0).max(9999).optional().nullable(),
+  active: z.boolean().optional().default(true),
+  order: z.number().int().min(0).max(999).optional().default(0),
+});
+
+export const dailyMenuSizeSchema = z.object({
+  id: z.string().optional(),
+  menuId: z.string().min(1),
+  name: z.string().min(2, "Informe o nome do tamanho").max(60),
+  description: z.string().max(200).optional().nullable(),
+  active: z.boolean().optional().default(true),
+  order: z.number().int().min(0).max(99).optional().default(0),
+});
+
+export const dailyMenuPricesSchema = z.object({
+  menuId: z.string().min(1),
+  prices: z
+    .array(
+      z.object({
+        mealId: z.string().min(1),
+        sizeId: z.string().min(1),
+        price: z.number().finite().nonnegative("Informe um preço válido"),
+      })
+    )
+    .max(500),
+});
+
+export const duplicateDailyMenuSchema = z.object({
+  sourceId: z.string().min(1, "Selecione o cardápio de origem"),
+  date: menuDateSchema,
+});
+
+/** Pedido de marmita do dia. Preço e estoque são validados no servidor. */
+export const dailyMenuOrderSchema = z.object({
+  mealId: z.string().min(1),
+  sizeId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99),
+  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+  observation: z.string().max(500).optional().nullable(),
+  recipientName: z.string().min(2).max(120).optional(),
+  recipientPhone: phoneSchema.optional(),
+  recipientAddress: z.string().max(300).optional().nullable(),
+  delivery: z
+    .object({
+      mode: z.enum(["PICKUP", "DELIVERY"]),
+      address: deliveryAddressSchema.optional(),
+    })
+    .optional(),
+});
+
+export const selfServiceSettingsSchema = z.object({
+  pricePerKg: z.number().finite().nonnegative("Informe o preço por quilo"),
+  fixedPrice: z.number().finite().nonnegative("Informe o preço por pessoa"),
+});
+
+/** Venda de self-service: peso em gramas ou quantidade de pessoas. */
+export const selfServiceSaleSchema = z.object({
+  mode: z.enum(["BY_WEIGHT", "FIXED"]),
+  weightGrams: z.number().finite().positive().max(10000).optional(),
+  people: z.number().int().min(1).max(99).optional(),
+  customerId: z.string().optional().nullable(),
+  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+  paidNow: z.boolean().optional().default(true),
+  amountReceived: z.number().finite().nonnegative().optional(),
+  observation: z.string().max(500).optional().nullable(),
+});
+
 export const cashMovementSchema = z.object({
   type: z.enum(["INCOME", "EXPENSE", "WITHDRAWAL", "SUPPLY"]),
   amount: z.number().positive("Valor deve ser maior que zero"),

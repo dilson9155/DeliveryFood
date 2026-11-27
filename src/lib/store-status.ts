@@ -38,6 +38,8 @@ export async function getStoreContext(): Promise<StoreContext> {
     receiptMessage: null,
     receiptFooter: null,
     printTemplateId: "thermal80",
+    selfServicePricePerKg: 0,
+    selfServiceFixedPrice: 0,
     updatedAt: new Date(),
   };
 

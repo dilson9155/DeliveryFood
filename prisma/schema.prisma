@@ -52,17 +52,17 @@ enum ComandaStatus {
 }
 
 enum DeliveryMode {
-  PICKUP       // Retirada no local (como é hoje)
-  DELIVERY     // Entrega no endereço do cliente
+  PICKUP // Retirada no local (como é hoje)
+  DELIVERY // Entrega no endereço do cliente
 }
 
 enum DeliveryStatus {
-  PENDING          // Aguardando sair (preparado, sem motoboy atribuído)
-  ASSIGNED         // Motoboy atribuído, ainda na loja
+  PENDING // Aguardando sair (preparado, sem motoboy atribuído)
+  ASSIGNED // Motoboy atribuído, ainda na loja
   OUT_FOR_DELIVERY // A caminho
-  ARRIVED          // Chegou no endereço
-  DELIVERED        // Entregue
-  FAILED           // Não conseguiu (cliente ausente, etc)
+  ARRIVED // Chegou no endereço
+  DELIVERED // Entregue
+  FAILED // Não conseguiu (cliente ausente, etc)
 }
 
 enum InstallmentStatus {
@@ -81,16 +81,16 @@ enum InstallmentFrequency {
 }
 
 enum BillCategory {
-  SUPPLIER         // Fornecedor (insumos, bebidas etc.)
-  EMPLOYEE         // Salário, vale, adiantamento
-  RENT             // Aluguel
-  ENERGY           // Energia
-  WATER            // Água
-  INTERNET         // Internet / telefone
-  TAX              // Impostos
-  MARKETING        // Marketing / anúncios
-  MAINTENANCE      // Manutenção / reparos
-  OTHER            // Outros
+  SUPPLIER // Fornecedor (insumos, bebidas etc.)
+  EMPLOYEE // Salário, vale, adiantamento
+  RENT // Aluguel
+  ENERGY // Energia
+  WATER // Água
+  INTERNET // Internet / telefone
+  TAX // Impostos
+  MARKETING // Marketing / anúncios
+  MAINTENANCE // Manutenção / reparos
+  OTHER // Outros
 }
 
 enum PayableMethod {
@@ -103,14 +103,14 @@ enum PayableMethod {
 }
 
 enum PayableType {
-  PAYABLE      // contas a pagar
-  RECEIVABLE   // contas a receber
+  PAYABLE // contas a pagar
+  RECEIVABLE // contas a receber
 }
 
 enum PaymentProvider {
-  MANUAL     // pagamento manual (sem gateway)
-  ASAAS      // integração Asaas
-  PAGBANK    // (futuro) integração PagBank
+  MANUAL // pagamento manual (sem gateway)
+  ASAAS // integração Asaas
+  PAGBANK // (futuro) integração PagBank
 }
 
 enum PaymentProviderStatus {
@@ -156,46 +156,48 @@ enum AuditAction {
 }
 
 model User {
-  id              String        @id @default(uuid())
-  userType        UserType
-  name            String
-  phone           String?
-  email           String?       @unique
-  login           String?       @unique
-  password        String
-  role            EmployeeRole?
-  active          Boolean       @default(true)
-  resetToken      String?
-  resetTokenExpires DateTime?
-  lastLogin       DateTime?
-  defaultObservation String?    @db.VarChar(500)
-  taxId             String?    @db.VarChar(18)
-  avatarUrl         String?    @db.VarChar(2048)
-  vehiclePlate      String?
-  vehicleModel      String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                 String        @id @default(uuid())
+  userType           UserType
+  name               String
+  phone              String?
+  email              String?       @unique
+  login              String?       @unique
+  password           String
+  role               EmployeeRole?
+  active             Boolean       @default(true)
+  resetToken         String?
+  resetTokenExpires  DateTime?
+  lastLogin          DateTime?
+  defaultObservation String?       @db.VarChar(500)
+  taxId              String?       @db.VarChar(18)
+  avatarUrl          String?       @db.VarChar(2048)
+  vehiclePlate       String?
+  vehicleModel       String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  orders          Order[]
-  addresses       Address[]
-  deliveries      Delivery[]    @relation("MotoboyDeliveries")
-  ordersDiscounted Order[]       @relation("OrderDiscountBy")
-  payablesCreated Payable[]     @relation("PayableCreator")
-  receivables     Receivable[]
-  receivablesCreated Receivable[] @relation("ReceivableCreator")
-  notifications   Notification[]
-  auditLogs       AuditLog[]
-  cashRegisters   CashRegister[]   @relation("CashRegisterOpenedBy")
-  cashRegisterCloses CashRegister[] @relation("CashRegisterClosedBy")
-  cashMovements   CashMovement[]
-  orderHistory    OrderHistory[]
-  paymentsConfirmed Payment[]     @relation("PaymentConfirmedBy")
-  pricingRuns       PricingRun[]        @relation("PricingRuns")
-  campaignsCreated  Campaign[]          @relation("CampaignsCreated")
-  campaignRecipients CampaignRecipient[] @relation("CampaignRecipients")
-  comandasCustomer  Comanda[]        @relation("ComandaCustomer")
-  comandasOpened    Comanda[]        @relation("ComandaOpenedBy")
-  comandasClosed    Comanda[]        @relation("ComandaClosedBy")
+  orders                 Order[]
+  addresses              Address[]
+  deliveries             Delivery[]          @relation("MotoboyDeliveries")
+  ordersDiscounted       Order[]             @relation("OrderDiscountBy")
+  payablesCreated        Payable[]           @relation("PayableCreator")
+  receivables            Receivable[]
+  receivablesCreated     Receivable[]        @relation("ReceivableCreator")
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+  cashRegisters          CashRegister[]      @relation("CashRegisterOpenedBy")
+  cashRegisterCloses     CashRegister[]      @relation("CashRegisterClosedBy")
+  cashMovements          CashMovement[]
+  orderHistory           OrderHistory[]
+  paymentsConfirmed      Payment[]           @relation("PaymentConfirmedBy")
+  pricingRuns            PricingRun[]        @relation("PricingRuns")
+  campaignsCreated       Campaign[]          @relation("CampaignsCreated")
+  campaignRecipients     CampaignRecipient[] @relation("CampaignRecipients")
+  comandasCustomer       Comanda[]           @relation("ComandaCustomer")
+  comandasOpened         Comanda[]           @relation("ComandaOpenedBy")
+  comandasClosed         Comanda[]           @relation("ComandaClosedBy")
+  selfServiceSales       SelfServiceSale[]   @relation("SelfServiceCustomer")
+  selfServiceSalesOpened SelfServiceSale[]   @relation("SelfServiceOperator")
 
   @@index([userType])
   @@index([phone])
@@ -214,29 +216,29 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  products    Product[]
+  products Product[]
 
   @@index([active, order])
 }
 
 model Product {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
   price       Float
   categoryId  String
   imageUrl    String?
-  featured    Boolean   @default(false)
-  order       Int       @default(0)
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  featured    Boolean  @default(false)
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  orderItems  OrderItem[]
+  category     Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems   OrderItem[]
   comandaItems ComandaItem[]
   pricingItems PricingRunItem[]
-  pricingCost PricingCost?
+  pricingCost  PricingCost?
   optionGroups ProductOptionGroup[]
 
   @@index([categoryId, active, order])
@@ -266,52 +268,53 @@ model ProductOptionGroup {
 
 /// Opção individual dentro de um grupo (ex.: "Frango grelhado", "Feijão carioca").
 model ProductOption {
-  id        String  @id @default(uuid())
-  groupId   String
-  name      String
-  price     Float   @default(0) // valor adicional sobre o produto base
-  order     Int     @default(0)
-  active    Boolean @default(true)
+  id      String  @id @default(uuid())
+  groupId String
+  name    String
+  price   Float   @default(0) // valor adicional sobre o produto base
+  order   Int     @default(0)
+  active  Boolean @default(true)
 
-  group     ProductOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group ProductOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([groupId, active, order])
 }
 
 model Order {
-  id            String        @id @default(uuid())
-  number        Int           @unique @default(autoincrement())
-  customerId    String
-  status        OrderStatus   @default(NEW)
-  subtotal      Float
-  total         Float
-  paymentMethod PaymentMethod
-  paymentStatus PaymentStatus @default(PENDING)
-  observation   String?
+  id               String        @id @default(uuid())
+  number           Int           @unique @default(autoincrement())
+  customerId       String
+  status           OrderStatus   @default(NEW)
+  subtotal         Float
+  total            Float
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(PENDING)
+  observation      String?
   // === Delivery ===
-  deliveryMode  DeliveryMode  @default(PICKUP)
-  deliveryFee   Float         @default(0)
+  deliveryMode     DeliveryMode  @default(PICKUP)
+  deliveryFee      Float         @default(0)
   // === Desconto de finalização (não fiscal) ===
-  discount         Float        @default(0)
+  discount         Float         @default(0)
   discountReason   String?
   discountByUserId String?
   // Snapshot do destinatário informado no checkout (usado no recibo).
   recipientName    String?
   recipientPhone   String?
-  recipientAddress String?      @db.VarChar(300)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  recipientAddress String?       @db.VarChar(300)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  customer      User          @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  items         OrderItem[]
-  history       OrderHistory[]
-  payment       Payment?
-  paymentIntent PaymentIntent?
-  cashMovement  CashMovement?
-  delivery      Delivery?
-  comanda       Comanda?
-  discountBy    User?         @relation("OrderDiscountBy", fields: [discountByUserId], references: [id], onDelete: SetNull)
-  receivable    Receivable?
+  customer        User             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+  history         OrderHistory[]
+  payment         Payment?
+  paymentIntent   PaymentIntent?
+  cashMovement    CashMovement?
+  delivery        Delivery?
+  comanda         Comanda?
+  selfServiceSale SelfServiceSale?
+  discountBy      User?            @relation("OrderDiscountBy", fields: [discountByUserId], references: [id], onDelete: SetNull)
+  receivable      Receivable?
 
   @@index([status, createdAt])
   @@index([customerId, status])
@@ -321,32 +324,37 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(uuid())
-  orderId     String
-  productId   String?
-  productName String
-  unitPrice   Float
-  quantity    Int
-  subtotal    Float
+  id              String  @id @default(uuid())
+  orderId         String
+  productId       String?
+  productName     String
+  unitPrice       Float
+  quantity        Int
+  subtotal        Float
+  // Pedidos de marmita do dia referenciam a refeição/tamanho escolhidos,
+  // sem criar produtos sintéticos no catálogo.
+  dailyMenuMealId String?
+  dailyMenuSizeId String?
 
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  options     OrderItemOption[]
+  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  options OrderItemOption[]
 
   @@index([orderId])
   @@index([productId])
+  @@index([dailyMenuMealId])
 }
 
 /// Escolhas feitas pelo cliente ao montar um produto configurável (marmitex).
 model OrderItemOption {
-  id         String @id @default(uuid())
+  id          String  @id @default(uuid())
   orderItemId String
-  groupId    String?
-  optionId   String?
-  groupName  String
-  optionName String
-  quantity   Int    @default(1)
-  unitPrice  Float  @default(0)
+  groupId     String?
+  optionId    String?
+  groupName   String
+  optionName  String
+  quantity    Int     @default(1)
+  unitPrice   Float   @default(0)
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
@@ -354,15 +362,15 @@ model OrderItemOption {
 }
 
 model OrderHistory {
-  id          String      @id @default(uuid())
-  orderId     String
-  fromStatus  OrderStatus?
-  toStatus    OrderStatus
-  userId      String?
-  createdAt   DateTime    @default(now())
+  id         String       @id @default(uuid())
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  userId     String?
+  createdAt  DateTime     @default(now())
 
-  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([orderId, createdAt])
 }
@@ -377,33 +385,33 @@ model Payment {
   confirmedBy String?
   createdAt   DateTime      @default(now())
 
-  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  whoConfirmed User?        @relation("PaymentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
+  order        Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  whoConfirmed User? @relation("PaymentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([confirmedAt])
 }
 
 model PaymentIntent {
-  id              String         @id @default(uuid())
-  orderId         String         @unique
-  provider        PaymentProvider @default(ASAAS)
-  providerPaymentId String?      // ID da cobrança no provider
-  providerChargeId  String?      // ID da transação específica
-  status          PaymentProviderStatus @default(PENDING)
-  method          PaymentMethod?
-  amount          Float
-  qrCodeBase64    String?        // PIX: QR base64 para <img>
-  qrCodeText      String?        // PIX: copia-e-cola
-  pixExpiresAt    DateTime?
-  invoiceUrl      String?        // link da fatura
-  paidAt          DateTime?
-  rawLastResponse Json?          // última resposta bruta do provider
-  createdAt       DateTime       @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                String                @id @default(uuid())
+  orderId           String                @unique
+  provider          PaymentProvider       @default(ASAAS)
+  providerPaymentId String? // ID da cobrança no provider
+  providerChargeId  String? // ID da transação específica
+  status            PaymentProviderStatus @default(PENDING)
+  method            PaymentMethod?
+  amount            Float
+  qrCodeBase64      String? // PIX: QR base64 para <img>
+  qrCodeText        String? // PIX: copia-e-cola
+  pixExpiresAt      DateTime?
+  invoiceUrl        String? // link da fatura
+  paidAt            DateTime?
+  rawLastResponse   Json? // última resposta bruta do provider
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
-  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  events          PaymentEvent[]
+  order  Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events PaymentEvent[]
 
   @@index([status])
   @@index([providerPaymentId])
@@ -411,35 +419,35 @@ model PaymentIntent {
 }
 
 model PaymentEvent {
-  id          String   @id @default(uuid())
-  intentId    String
-  type        String   // payment.created, payment.paid, payment.failed, webhook
-  rawPayload  Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  intentId   String
+  type       String // payment.created, payment.paid, payment.failed, webhook
+  rawPayload Json?
+  createdAt  DateTime @default(now())
 
-  intent      PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  intent PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
 
   @@index([intentId, createdAt])
 }
 
 model CashRegister {
-  id            String            @id @default(uuid())
-  openedAt      DateTime          @default(now())
-  closedAt      DateTime?
-  openingAmount Float
-  closingAmount Float?
+  id             String             @id @default(uuid())
+  openedAt       DateTime           @default(now())
+  closedAt       DateTime?
+  openingAmount  Float
+  closingAmount  Float?
   expectedAmount Float?
-  difference    Float?
-  status        CashRegisterStatus @default(OPEN)
-  notes         String?
-  openedBy      String
-  closedBy      String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  difference     Float?
+  status         CashRegisterStatus @default(OPEN)
+  notes          String?
+  openedBy       String
+  closedBy       String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  openedByUser  User              @relation("CashRegisterOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
-  closedByUser  User?             @relation("CashRegisterClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
-  movements     CashMovement[]
+  openedByUser User           @relation("CashRegisterOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
+  closedByUser User?          @relation("CashRegisterClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
+  movements    CashMovement[]
 
   @@index([status, openedAt])
 }
@@ -455,9 +463,9 @@ model CashMovement {
   userId         String
   createdAt      DateTime         @default(now())
 
-  cashRegister   CashRegister     @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
-  order          Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  user           User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([cashRegisterId, createdAt])
   @@index([type])
@@ -467,7 +475,7 @@ model CashMovement {
 model Address {
   id            String   @id @default(uuid())
   userId        String
-  label         String?  // "Casa", "Trabalho", etc
+  label         String? // "Casa", "Trabalho", etc
   recipientName String?
   street        String
   number        String
@@ -482,7 +490,7 @@ model Address {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, isDefault])
@@ -506,9 +514,9 @@ model Delivery {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  motoboy         User?          @relation("MotoboyDeliveries", fields: [motoboyId], references: [id], onDelete: SetNull)
-  locations       DeliveryLocation[]
+  order     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  motoboy   User?              @relation("MotoboyDeliveries", fields: [motoboyId], references: [id], onDelete: SetNull)
+  locations DeliveryLocation[]
 
   @@index([status])
   @@index([motoboyId, status])
@@ -516,82 +524,85 @@ model Delivery {
 }
 
 model DeliveryLocation {
-  id          String   @id @default(uuid())
-  deliveryId  String
-  lat         Float
-  lng         Float
-  accuracy    Float?
-  speed       Float?
-  heading     Float?
-  recordedAt  DateTime @default(now())
+  id         String   @id @default(uuid())
+  deliveryId String
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  speed      Float?
+  heading    Float?
+  recordedAt DateTime @default(now())
 
-  delivery    Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
 
   @@index([deliveryId, recordedAt])
 }
 
 model DeliverySettings {
   id              String   @id @default("default")
-  deliveryEnabled Boolean   @default(true)
-  baseFee         Float     @default(5.00)
-  feePerKm        Float     @default(1.50)
-  minFee          Float     @default(5.00)
-  maxFee          Float     @default(30.00)
-  maxDistanceKm   Float     @default(15.00)
-  avgSpeedKmh     Float     @default(25.00)
-  updatedAt       DateTime  @updatedAt
+  deliveryEnabled Boolean  @default(true)
+  baseFee         Float    @default(5.00)
+  feePerKm        Float    @default(1.50)
+  minFee          Float    @default(5.00)
+  maxFee          Float    @default(30.00)
+  maxDistanceKm   Float    @default(15.00)
+  avgSpeedKmh     Float    @default(25.00)
+  updatedAt       DateTime @updatedAt
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String?
-  type      String   @default("ORDER_STATUS")
+  type      String    @default("ORDER_STATUS")
   title     String
   body      String?
   link      String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
   @@index([createdAt])
 }
 
 model BusinessHours {
-  id        String   @id @default(uuid())
-  dayOfWeek Int @unique
-  open      Boolean  @default(true)
-  openTime  String   @default("10:00")
-  closeTime String   @default("22:00")
+  id        String  @id @default(uuid())
+  dayOfWeek Int     @unique
+  open      Boolean @default(true)
+  openTime  String  @default("10:00")
+  closeTime String  @default("22:00")
 
   @@index([open])
 }
 
 model Settings {
-  id                String  @id @default("default")
-  storeName         String  @default("Meu Estabelecimento")
-  logoUrl           String?
-  cnpj              String?
-  phone             String?
-  whatsapp          String?
-  email             String?
-  address           String?
-  number            String?
-  complement        String?
-  neighborhood      String?
-  city              String?
-  state             String?
-  zipCode           String?
-  prepTimeMinutes   Int     @default(30)
+  id                    String   @id @default("default")
+  storeName             String   @default("Meu Estabelecimento")
+  logoUrl               String?
+  cnpj                  String?
+  phone                 String?
+  whatsapp              String?
+  email                 String?
+  address               String?
+  number                String?
+  complement            String?
+  neighborhood          String?
+  city                  String?
+  state                 String?
+  zipCode               String?
+  prepTimeMinutes       Int      @default(30)
   // Entrega: taxa fixa configurável, sem cotação por distância.
-  deliveryEnabled   Boolean  @default(true)
-  deliveryFee       Float    @default(0)
-  isManuallyOpen    Boolean?
-  receiptMessage    String?
-  receiptFooter     String?
-  printTemplateId   String? @default("thermal80")
-  updatedAt         DateTime @updatedAt
+  deliveryEnabled       Boolean  @default(true)
+  deliveryFee           Float    @default(0)
+  isManuallyOpen        Boolean?
+  receiptMessage        String?
+  receiptFooter         String?
+  printTemplateId       String?  @default("thermal80")
+  // Self-service: preços configuráveis de forma independente do catálogo.
+  selfServicePricePerKg Float    @default(0)
+  selfServiceFixedPrice Float    @default(0)
+  updatedAt             DateTime @updatedAt
 }
 
 /// Chave PIX estática configurada pelo painel. Persiste no banco para funcionar
@@ -625,29 +636,29 @@ model RestaurantTable {
 
 /// Comanda da mesa: itens vão sendo adicionados e o fechamento gera um pedido.
 model Comanda {
-  id           String        @id @default(uuid())
-  number       Int           @unique @default(autoincrement())
-  tableId      String
-  customerId   String?
-  customerName String?
-  status       ComandaStatus @default(OPEN)
-  observation  String?
+  id            String         @id @default(uuid())
+  number        Int            @unique @default(autoincrement())
+  tableId       String
+  customerId    String?
+  customerName  String?
+  status        ComandaStatus  @default(OPEN)
+  observation   String?
   paymentMethod PaymentMethod?
-  paidNow      Boolean        @default(false)
-  openedAt     DateTime      @default(now())
-  closedAt     DateTime?
-  openedBy     String
-  closedBy     String?
-  orderId      String?       @unique
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  paidNow       Boolean        @default(false)
+  openedAt      DateTime       @default(now())
+  closedAt      DateTime?
+  openedBy      String
+  closedBy      String?
+  orderId       String?        @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Restrict)
-  customer      User?           @relation("ComandaCustomer", fields: [customerId], references: [id], onDelete: SetNull)
-  openedByUser  User            @relation("ComandaOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
-  closedByUser  User?           @relation("ComandaClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
-  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  items         ComandaItem[]
+  table        RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  customer     User?           @relation("ComandaCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  openedByUser User            @relation("ComandaOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
+  closedByUser User?           @relation("ComandaClosedBy", fields: [closedBy], references: [id], onDelete: SetNull)
+  order        Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  items        ComandaItem[]
 
   @@index([status, openedAt])
   @@index([tableId, status])
@@ -673,14 +684,14 @@ model ComandaItem {
 
 /// Escolhas de marmitex/adicionais feitas na comanda (mesmo modelo do pedido).
 model ComandaItemOption {
-  id            String @id @default(uuid())
+  id            String  @id @default(uuid())
   comandaItemId String
   groupId       String?
   optionId      String?
   groupName     String
   optionName    String
-  quantity      Int    @default(1)
-  unitPrice     Float  @default(0)
+  quantity      Int     @default(1)
+  unitPrice     Float   @default(0)
 
   item ComandaItem @relation(fields: [comandaItemId], references: [id], onDelete: Cascade)
 
@@ -688,68 +699,68 @@ model ComandaItemOption {
 }
 
 model Payable {
-  id           String       @id @default(uuid())
-  description  String
-  supplier     String?
-  category     BillCategory @default(OTHER)
-  totalAmount  Float
-  issueDate    DateTime     @default(now())
-  notes        String?
-  createdById  String
-  paidAt       DateTime?
-  paidAmount   Float        @default(0)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String       @id @default(uuid())
+  description String
+  supplier    String?
+  category    BillCategory @default(OTHER)
+  totalAmount Float
+  issueDate   DateTime     @default(now())
+  notes       String?
+  createdById String
+  paidAt      DateTime?
+  paidAmount  Float        @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   installments Installment[] @relation("PayableInstallments")
-  createdBy    User         @relation("PayableCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy    User          @relation("PayableCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([issueDate])
   @@index([category])
 }
 
 model Receivable {
-  id           String       @id @default(uuid())
-  description  String
-  customerId   String?      // se veio de um cliente cadastrado
-  orderId      String?      @unique // se veio de um pedido
-  totalAmount  Float
-  issueDate    DateTime     @default(now())
-  notes        String?
-  createdById  String
-  paidAt       DateTime?
-  paidAmount   Float        @default(0)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String    @id @default(uuid())
+  description String
+  customerId  String? // se veio de um cliente cadastrado
+  orderId     String?   @unique // se veio de um pedido
+  totalAmount Float
+  issueDate   DateTime  @default(now())
+  notes       String?
+  createdById String
+  paidAt      DateTime?
+  paidAmount  Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   installments Installment[] @relation("ReceivableInstallments")
-  customer     User?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("ReceivableCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  customer     User?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdBy    User          @relation("ReceivableCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([issueDate])
   @@index([customerId])
 }
 
 model Installment {
-  id             String         @id @default(uuid())
-  parentType     PayableType
-  payableId      String?
-  receivableId   String?
-  number         Int           // 1, 2, 3...
-  amount         Float
-  paidAmount     Float         @default(0)
-  status         InstallmentStatus @default(PENDING)
-  dueDate        DateTime
-  paidAt         DateTime?
-  paymentMethod  PayableMethod?
-  notes          String?
-  attachmentUrl  String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String            @id @default(uuid())
+  parentType    PayableType
+  payableId     String?
+  receivableId  String?
+  number        Int // 1, 2, 3...
+  amount        Float
+  paidAmount    Float             @default(0)
+  status        InstallmentStatus @default(PENDING)
+  dueDate       DateTime
+  paidAt        DateTime?
+  paymentMethod PayableMethod?
+  notes         String?
+  attachmentUrl String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
-  payable        Payable?      @relation("PayableInstallments", fields: [payableId], references: [id], onDelete: Cascade)
-  receivable     Receivable?   @relation("ReceivableInstallments", fields: [receivableId], references: [id], onDelete: Cascade)
+  payable    Payable?    @relation("PayableInstallments", fields: [payableId], references: [id], onDelete: Cascade)
+  receivable Receivable? @relation("ReceivableInstallments", fields: [receivableId], references: [id], onDelete: Cascade)
 
   @@index([dueDate])
   @@index([parentType, dueDate])
@@ -768,7 +779,7 @@ model AuditLog {
   ipAddress String?
   createdAt DateTime    @default(now())
 
-  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([action, createdAt])
@@ -778,29 +789,29 @@ model AuditLog {
 // Cada "rodada" de precificação (ex.: reajuste de 10%) aplica novos preços ao
 // catálogo e fica registrada com o antes/depois para poder ser reutilizada.
 model PricingRun {
-  id          String           @id @default(uuid())
+  id          String   @id @default(uuid())
   label       String
   note        String?
-  totalItems  Int              @default(0)
+  totalItems  Int      @default(0)
   createdById String?
-  createdAt   DateTime         @default(now())
+  createdAt   DateTime @default(now())
 
-  createdBy   User?            @relation("PricingRuns", fields: [createdById], references: [id], onDelete: SetNull)
-  items       PricingRunItem[]
+  createdBy User?            @relation("PricingRuns", fields: [createdById], references: [id], onDelete: SetNull)
+  items     PricingRunItem[]
 
   @@index([createdAt])
 }
 
 model PricingRunItem {
-  id          String      @id @default(uuid())
+  id          String @id @default(uuid())
   runId       String
   productId   String
-  productName String      // snapshot do nome no momento da rodada
+  productName String // snapshot do nome no momento da rodada
   oldPrice    Float
   newPrice    Float
 
-  run         PricingRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  run     PricingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([runId])
 }
@@ -812,25 +823,25 @@ model PricingRunItem {
 model PricingCost {
   id                String   @id @default(uuid())
   productId         String   @unique
-  code              String?  @db.VarChar(40)   // Código
+  code              String?  @db.VarChar(40) // Código
   unit              String   @default("UN") @db.VarChar(10) // UN, KG, L, CX...
-  supplier          String?  @db.VarChar(120)  // Fornecedor
-  purchaseCost      Float?   // Custo de compra (R$/un)
-  freight           Float?   // Frete (R$/un)
-  otherCosts        Float?   // Outros custos: embalagem, taxas (R$/un)
-  additionalCostPct Float?   // Custo adicional %: perdas, tributos de compra
-  desiredMarginPct  Float?   // Margem desejada % (sobre o preço)
-  taxPct            Float?   // Impostos %
-  commissionPct     Float?   // Comissão %
-  cardFeePct        Float?   // Taxa cartão %
-  marketplaceFeePct Float?   // Taxa marketplace %
-  maxDiscountPct    Float?   // Desconto máximo % (limite de negociação)
-  fixedCost         Float?   // Custo fixo a recuperar (R$) — p/ ponto de equilíbrio
-  notes             String?  @db.VarChar(500)  // Observações
+  supplier          String?  @db.VarChar(120) // Fornecedor
+  purchaseCost      Float? // Custo de compra (R$/un)
+  freight           Float? // Frete (R$/un)
+  otherCosts        Float? // Outros custos: embalagem, taxas (R$/un)
+  additionalCostPct Float? // Custo adicional %: perdas, tributos de compra
+  desiredMarginPct  Float? // Margem desejada % (sobre o preço)
+  taxPct            Float? // Impostos %
+  commissionPct     Float? // Comissão %
+  cardFeePct        Float? // Taxa cartão %
+  marketplaceFeePct Float? // Taxa marketplace %
+  maxDiscountPct    Float? // Desconto máximo % (limite de negociação)
+  fixedCost         Float? // Custo fixo a recuperar (R$) — p/ ponto de equilíbrio
+  notes             String?  @db.VarChar(500) // Observações
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
@@ -851,6 +862,7 @@ enum RecipientStatus {
   ERROR
   CANCELLED
 }
+
 // Status de campanhas de disparo de mensagens
 
 model Campaign {
@@ -867,29 +879,122 @@ model Campaign {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  createdBy  User?              @relation("CampaignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy  User?               @relation("CampaignsCreated", fields: [createdById], references: [id], onDelete: SetNull)
   recipients CampaignRecipient[]
 
   @@index([status, createdAt])
   @@index([createdAt])
 }
+
 model CampaignRecipient {
-  id         String         @id @default(uuid())
+  id         String          @id @default(uuid())
   campaignId String
   customerId String?
-  name       String         @db.VarChar(120)
-  phone      String         @db.VarChar(20)
-  message    String         @db.Text
+  name       String          @db.VarChar(120)
+  phone      String          @db.VarChar(20)
+  message    String          @db.Text
   status     RecipientStatus @default(PENDING)
-  error      String?        @db.VarChar(255)
+  error      String?         @db.VarChar(255)
   sentAt     DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
-  campaign   Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  customer   User?          @relation("CampaignRecipients", fields: [customerId], references: [id], onDelete: SetNull)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer User?    @relation("CampaignRecipients", fields: [customerId], references: [id], onDelete: SetNull)
 
   @@unique([campaignId, customerId])
   @@index([campaignId, status])
   @@index([status])
+}
+
+/// Cardápio do dia: refeições completas, tamanhos e matriz de preços.
+/// O cliente escolhe apenas a refeição e o tamanho, nunca ingredientes.
+model DailyMenu {
+  id        String   @id @default(uuid())
+  date      String   @unique
+  title     String?  @db.VarChar(120)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meals DailyMenuMeal[]
+  sizes DailyMenuSize[]
+
+  @@index([active, date])
+}
+
+model DailyMenuMeal {
+  id           String   @id @default(uuid())
+  menuId       String
+  name         String   @db.VarChar(120)
+  description  String?  @db.VarChar(500)
+  imageUrl     String?
+  availableQty Int?
+  active       Boolean  @default(true)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  menu   DailyMenu            @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  prices DailyMenuMealPrice[]
+
+  @@index([menuId, active, order])
+}
+
+model DailyMenuSize {
+  id          String  @id @default(uuid())
+  menuId      String
+  name        String  @db.VarChar(60)
+  description String? @db.VarChar(200)
+  active      Boolean @default(true)
+  order       Int     @default(0)
+
+  menu   DailyMenu            @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  prices DailyMenuMealPrice[]
+
+  @@index([menuId, active, order])
+}
+
+model DailyMenuMealPrice {
+  id     String @id @default(uuid())
+  mealId String
+  sizeId String
+  price  Float
+
+  meal DailyMenuMeal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  size DailyMenuSize @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+
+  @@unique([mealId, sizeId])
+  @@index([sizeId])
+}
+
+enum SelfServiceMode {
+  BY_WEIGHT
+  FIXED
+}
+
+/// Vendas de self-service por peso ou preço fixo, ligadas ao pedido
+/// para reaproveitar recibo, caixa, pagamento e fila de preparo.
+model SelfServiceSale {
+  id             String          @id @default(uuid())
+  number         Int             @unique @default(autoincrement())
+  mode           SelfServiceMode
+  weightGrams    Float?
+  pricePerKg     Float?
+  people         Int?
+  pricePerPerson Float?
+  total          Float
+  paymentMethod  PaymentMethod
+  paidNow        Boolean         @default(true)
+  customerId     String?
+  operatorId     String
+  orderId        String?         @unique
+  createdAt      DateTime        @default(now())
+
+  customer User?  @relation("SelfServiceCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  operator User   @relation("SelfServiceOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  order    Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([customerId])
 }
