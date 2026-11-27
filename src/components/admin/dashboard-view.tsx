@@ -73,7 +73,7 @@ export function DashboardView() {
           className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
         >
           <ShoppingBag className="h-4 w-4" />
-          Abrir fila de pedidos
+          Abrir fila de entregas
         </Link>
       </div>
 

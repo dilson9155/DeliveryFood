@@ -493,17 +493,131 @@ export async function changeOrderStatusAction(
   return { ok: true, orderId: order.id, number: order.number, total: updated.total };
 }
 
-type DeliveryResult =
+type QueueResult =
   | { ok: true; number: number; alreadyDone?: boolean }
   | { ok: false; error: string };
 
+/** Sequência única da fila simplificada: cada clique avança quantos passos forem necessários. */
+const DELIVERY_FLOW: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.READY,
+  OrderStatus.OUT_FOR_DELIVERY,
+  OrderStatus.DELIVERED,
+];
+const PICKUP_FLOW: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.READY,
+  OrderStatus.PICKED_UP,
+  OrderStatus.FINISHED,
+];
+
+function stepsAfter(flow: OrderStatus[], current: OrderStatus): OrderStatus[] {
+  const index = flow.indexOf(current);
+  return index < 0 ? [] : flow.slice(index + 1);
+}
+
 /**
- * Ação única para a fila operacional: conclui a entrega (retirada ou entrega)
- * e mantém Order/Delivery/histórico sincronizados.
+ * Fila de entregas: o operador confirma que recebeu o pedido.
+ * O cliente passa a ver "recebido / em preparo" no acompanhamento.
  */
+export async function confirmOrderReceiptAdminAction(
+  orderId: string
+): Promise<QueueResult> {
+  const session = await auth();
+  if (!session?.user || session.user.userType !== UserType.EMPLOYEE) {
+    return { ok: false, error: "Acesso restrito a colaboradores." };
+  }
+  const user: SessionUser = {
+    id: session.user.id,
+    userType: session.user.userType,
+    role: session.user.role,
+    name: session.user.name,
+    email: session.user.email,
+  };
+  if (!can(user, "orders.manage") && !can(user, "orders.prepare")) {
+    return { ok: false, error: "Você não tem permissão para receber pedidos." };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: true },
+  });
+  if (!order) return { ok: false, error: "Pedido não encontrado." };
+  if (order.status === OrderStatus.CANCELLED) {
+    return { ok: false, error: "Pedido cancelado não pode ser recebido." };
+  }
+  if (
+    order.deliveryMode !== DeliveryMode.DELIVERY ||
+    stepsAfter(DELIVERY_FLOW, order.status).length === 0 ||
+    DELIVERY_FLOW.indexOf(order.status) >= DELIVERY_FLOW.indexOf(OrderStatus.READY)
+  ) {
+    return { ok: true, number: order.number, alreadyDone: true };
+  }
+
+  const steps = stepsAfter(DELIVERY_FLOW, order.status).filter(
+    (step) => DELIVERY_FLOW.indexOf(step) <= DELIVERY_FLOW.indexOf(OrderStatus.PREPARING)
+  );
+  const historyData = steps.map((toStatus, index) => ({
+    orderId: order.id,
+    fromStatus: index === 0 ? order.status : steps[index - 1],
+    toStatus,
+    userId: user.id,
+  }));
+
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.PREPARING },
+    }),
+    prisma.orderHistory.createMany({ data: historyData }),
+  ]);
+
+  await prisma.notification.create({
+    data: {
+      userId: order.customerId,
+      type: "ORDER_STATUS",
+      title: `Pedido #${order.number}: recebido e em preparo`,
+      body: `Recebemos seu pedido #${order.number} e já estamos preparando para entrega.`,
+      link: `/pedido/${order.id}`,
+    },
+  });
+
+  await sendOrderEventWhatsApp({
+    order: {
+      id: order.id,
+      number: order.number,
+      total: order.total,
+      deliveryMode: order.deliveryMode,
+      customer: order.customer,
+      paymentMethod: order.paymentMethod,
+    },
+    toStatus: OrderStatus.CONFIRMED,
+  }).catch(() => undefined);
+
+  await audit({
+    userId: user.id,
+    action: "STATUS_CHANGE",
+    resource: "order",
+    entityId: order.id,
+    details: `Pedido #${order.number}: recebimento confirmado pela fila de entregas.`,
+  });
+
+  revalidatePath("/admin/fila-pedidos");
+  revalidatePath("/admin/pedidos");
+  revalidatePath(`/pedido/${order.id}`);
+  revalidatePath("/admin/dashboard");
+
+  return { ok: true, number: order.number };
+}
+
+/** Conclui a entrega em um clique, registrando todos os passos no histórico. */
 export async function markOrderDeliveredAdminAction(
   orderId: string
-): Promise<DeliveryResult> {
+): Promise<QueueResult> {
   const session = await auth();
   if (!session?.user || session.user.userType !== UserType.EMPLOYEE) {
     return { ok: false, error: "Acesso restrito a colaboradores." };
@@ -534,25 +648,10 @@ export async function markOrderDeliveredAdminAction(
     return { ok: true, number: order.number, alreadyDone: true };
   }
 
-  const steps: OrderStatus[] =
-    order.deliveryMode === DeliveryMode.DELIVERY
-      ? order.status === OrderStatus.OUT_FOR_DELIVERY
-        ? [OrderStatus.DELIVERED]
-        : [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED]
-      : order.status === OrderStatus.PICKED_UP
-        ? [OrderStatus.FINISHED]
-        : [OrderStatus.PICKED_UP, OrderStatus.FINISHED];
-
-  let cursor: OrderStatus = order.status;
-  for (const step of steps) {
-    const denied = assertTransition(user, cursor, step);
-    if (denied) {
-      return {
-        ok: false,
-        error: "Conclua o preparo antes de marcar como entregue.",
-      };
-    }
-    cursor = step;
+  const flow = order.deliveryMode === DeliveryMode.DELIVERY ? DELIVERY_FLOW : PICKUP_FLOW;
+  const steps = stepsAfter(flow, order.status);
+  if (steps.length === 0) {
+    return { ok: true, number: order.number, alreadyDone: true };
   }
 
   const now = new Date();

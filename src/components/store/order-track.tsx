@@ -188,7 +188,10 @@ export function OrderTrack({
         <Card className="mb-6 p-6">
           <div className="mb-4 flex items-center gap-3">
             <Badge tone={STATUS_TONE[order.status]}>
-              {STATUS_LABELS[order.status]}
+              {isDeliveryOrder &&
+              (order.status === "CONFIRMED" || order.status === "PREPARING")
+                ? "Recebido · em preparo"
+                : STATUS_LABELS[order.status]}
             </Badge>
             {order.paymentStatus === "PENDING" && (
               <Badge tone="warning">
@@ -204,6 +207,18 @@ export function OrderTrack({
               </Badge>
             )}
           </div>
+
+          {isDeliveryOrder &&
+            (order.status === "CONFIRMED" || order.status === "PREPARING") && (
+              <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2.5">
+                <p className="text-sm font-bold text-brand-800">
+                  Pedido recebido e em preparo
+                </p>
+                <p className="mt-0.5 text-xs text-brand-700">
+                  Recebemos seu pedido e estamos preparando para entrega. Avisaremos quando sair para entrega.
+                </p>
+              </div>
+            )}
 
           <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {steps.map((step, idx) => {

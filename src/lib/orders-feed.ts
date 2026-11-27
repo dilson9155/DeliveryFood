@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { OrderStatus, Prisma } from "@prisma/client";
+import { DeliveryMode, OrderStatus, Prisma } from "@prisma/client";
 
 /**
- * Pedidos do dia para a fila operacional.
- * Exclui self-service (que já tem painel próprio) e cancelados.
+ * Fila simplificada de entregas: apenas pedidos com entrega feitos hoje.
+ * Retirada, self-service e cancelados ficam de fora.
  */
 export async function getOperationsOrders() {
   const startOfToday = new Date();
@@ -12,6 +12,7 @@ export async function getOperationsOrders() {
   return prisma.order.findMany({
     where: {
       createdAt: { gte: startOfToday },
+      deliveryMode: DeliveryMode.DELIVERY,
       status: { not: OrderStatus.CANCELLED },
       selfServiceSale: null,
     },
@@ -29,9 +30,8 @@ export async function getOperationsOrders() {
       },
       payment: true,
       history: {
-        where: { toStatus: OrderStatus.READY },
         orderBy: { createdAt: Prisma.SortOrder.desc },
-        take: 1,
+        take: 8,
         select: { createdAt: true, toStatus: true },
       },
       delivery: {

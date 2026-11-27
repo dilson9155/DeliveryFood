@@ -30,7 +30,6 @@ import {
   Truck,
   Soup,
   Scale,
-  ClipboardList,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionUser, type Permission } from "@/lib/permissions";
 import { logoutAction } from "@/app/actions/auth";
@@ -95,13 +94,12 @@ export function AdminShell({
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
     { href: "/admin/pdv", label: "PDV", icon: <ShoppingCart className="h-5 w-5" />, permission: "orders.manage" },
-    { href: "/admin/fila-pedidos", label: "Pedidos", icon: <ClipboardList className="h-5 w-5" />, permission: "orders.view" },
-    { href: "/admin/pedidos", label: "Pedidos (kanban)", icon: <ShoppingBag className="h-5 w-5" />, permission: "orders.view" },
+    { href: "/admin/fila-pedidos", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "orders.view" },
+    { href: "/admin/pedidos", label: "Pedidos", icon: <ShoppingBag className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/cardapio-do-dia", label: "Cardápio do dia", icon: <Soup className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/autoatendimento", label: "Self-service", icon: <Scale className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/comandas", label: "Comandas", icon: <Receipt className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/mesas", label: "Mesas", icon: <LayoutGrid className="h-5 w-5" />, permission: "orders.manage" },
-    { href: "/admin/entregas", label: "Fila de entregas", icon: <Truck className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/produtos", label: "Produtos", icon: <UtensilsCrossed className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/precificacao", label: "Precificação", icon: <Tags className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/categorias", label: "Categorias", icon: <FolderOpen className="h-5 w-5" />, permission: "categories.manage" },

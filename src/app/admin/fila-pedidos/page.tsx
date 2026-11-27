@@ -6,9 +6,9 @@ import { getStoreContext } from "@/lib/store-status";
 import { can, type SessionUser } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Fila de pedidos" };
+export const metadata: Metadata = { title: "Fila de entregas" };
 
-export default async function OperationsQueuePage() {
+export default async function DeliveryQueuePage() {
   const [orders, context, session] = await Promise.all([
     getOperationsOrders(),
     getStoreContext(),
@@ -25,31 +25,12 @@ export default async function OperationsQueuePage() {
       }
     : null;
 
-  const receiptSettings = JSON.parse(
-    JSON.stringify({
-      storeName: context.settings.storeName,
-      logoUrl: context.settings.logoUrl,
-      cnpj: context.settings.cnpj,
-      phone: context.settings.phone,
-      address: context.settings.address,
-      number: context.settings.number,
-      complement: context.settings.complement,
-      neighborhood: context.settings.neighborhood,
-      city: context.settings.city,
-      state: context.settings.state,
-      zipCode: context.settings.zipCode,
-      receiptMessage: context.settings.receiptMessage,
-      receiptFooter: context.settings.receiptFooter,
-      printTemplateId: context.settings.printTemplateId,
-    })
-  );
-
   return (
     <OrdersOperationsBoard
       orders={JSON.parse(JSON.stringify(orders))}
-      settings={receiptSettings}
       storeName={context.settings.storeName}
       prepTimeMinutes={context.settings.prepTimeMinutes || 30}
+      canConfirm={can(user, "orders.manage") || can(user, "orders.prepare")}
       canDeliver={can(user, "orders.pickup") || can(user, "orders.manage")}
     />
   );
