@@ -21,7 +21,7 @@ import {
   markOrderDeliveredAdminAction,
   registerReceiptPrintAction,
 } from "@/app/actions/orders";
-import { cn, formatCurrency, formatTime } from "@/lib/format";
+import { cn, formatTime } from "@/lib/format";
 import {
   PAYMENT_LABELS,
   STATUS_LABELS,
