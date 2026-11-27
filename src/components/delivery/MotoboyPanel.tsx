@@ -21,6 +21,7 @@ import {
   recordLocationAction,
 } from "@/app/actions/delivery";
 import { formatCurrency } from "@/lib/format";
+import { buildOrderCallMessage, buildWhatsAppLink } from "@/lib/whatsapp-link";
 import { playBell, unlockAudio } from "@/lib/sound";
 import type { LatLng } from "@/lib/geo";
 
@@ -81,6 +82,18 @@ export function MotoboyPanel({
   const lastSentRef = useRef<number>(0);
   const [tracking, setTracking] = useState(false);
   const seenIds = useRef<Set<string>>(new Set(initial.map((d) => d.id)));
+
+  const whatsappLink = selected
+    ? buildWhatsAppLink(
+        selected.customerPhone,
+        buildOrderCallMessage({
+          orderNumber: selected.number,
+          customerName: selected.customerName,
+          deliveryMode: "DELIVERY",
+          status: selected.status,
+        })
+      )
+    : null;
 
   // Inicia watchPosition quando uma entrega OUT_FOR_DELIVERY é selecionada
   useEffect(() => {
@@ -376,9 +389,9 @@ export function MotoboyPanel({
                     </Button>
                   </>
                 )}
-                {selected.customerPhone && (
+                {whatsappLink && (
                   <a
-                    href={`https://wa.me/55${selected.customerPhone.replace(/\D/g, "")}`}
+                    href={whatsappLink}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 rounded-xl border border-border bg-background px-3 py-2 text-sm hover:bg-muted"

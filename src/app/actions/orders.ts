@@ -493,6 +493,163 @@ export async function changeOrderStatusAction(
   return { ok: true, orderId: order.id, number: order.number, total: updated.total };
 }
 
+type DeliveryResult =
+  | { ok: true; number: number; alreadyDone?: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Ação única para a fila operacional: conclui a entrega (retirada ou entrega)
+ * e mantém Order/Delivery/histórico sincronizados.
+ */
+export async function markOrderDeliveredAdminAction(
+  orderId: string
+): Promise<DeliveryResult> {
+  const session = await auth();
+  if (!session?.user || session.user.userType !== UserType.EMPLOYEE) {
+    return { ok: false, error: "Acesso restrito a colaboradores." };
+  }
+  const user: SessionUser = {
+    id: session.user.id,
+    userType: session.user.userType,
+    role: session.user.role,
+    name: session.user.name,
+    email: session.user.email,
+  };
+  if (!can(user, "orders.pickup") && !can(user, "orders.manage")) {
+    return { ok: false, error: "Você não tem permissão para concluir pedidos." };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: true, delivery: { include: { motoboy: true } } },
+  });
+  if (!order) return { ok: false, error: "Pedido não encontrado." };
+  if (order.status === OrderStatus.CANCELLED) {
+    return { ok: false, error: "Pedido cancelado não pode ser entregue." };
+  }
+  if (
+    order.status === OrderStatus.DELIVERED ||
+    order.status === OrderStatus.FINISHED
+  ) {
+    return { ok: true, number: order.number, alreadyDone: true };
+  }
+
+  const steps: OrderStatus[] =
+    order.deliveryMode === DeliveryMode.DELIVERY
+      ? order.status === OrderStatus.OUT_FOR_DELIVERY
+        ? [OrderStatus.DELIVERED]
+        : [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED]
+      : order.status === OrderStatus.PICKED_UP
+        ? [OrderStatus.FINISHED]
+        : [OrderStatus.PICKED_UP, OrderStatus.FINISHED];
+
+  let cursor: OrderStatus = order.status;
+  for (const step of steps) {
+    const denied = assertTransition(user, cursor, step);
+    if (denied) {
+      return {
+        ok: false,
+        error: "Conclua o preparo antes de marcar como entregue.",
+      };
+    }
+    cursor = step;
+  }
+
+  const now = new Date();
+  const finalStatus = steps[steps.length - 1];
+  const historyData = steps.map((toStatus, index) => ({
+    orderId: order.id,
+    fromStatus: index === 0 ? order.status : steps[index - 1],
+    toStatus,
+    userId: user.id,
+  }));
+
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: order.id },
+      data: { status: finalStatus },
+    }),
+    prisma.orderHistory.createMany({ data: historyData }),
+    ...(order.delivery && finalStatus === OrderStatus.DELIVERED
+      ? [
+          prisma.delivery.update({
+            where: { id: order.delivery.id },
+            data: {
+              status: DeliveryStatus.DELIVERED,
+              pickedUpAt: order.delivery.pickedUpAt ?? now,
+              deliveredAt: now,
+            },
+          }),
+        ]
+      : []),
+  ]);
+
+  await prisma.notification.create({
+    data: {
+      userId: order.customerId,
+      type: "ORDER_STATUS",
+      title: `Pedido #${order.number}: entregue`,
+      body: `Seu pedido #${order.number} foi entregue. Obrigado!`,
+      link: `/pedido/${order.id}`,
+    },
+  });
+
+  await sendOrderEventWhatsApp({
+    order: {
+      id: order.id,
+      number: order.number,
+      total: order.total,
+      deliveryMode: order.deliveryMode,
+      customer: order.customer,
+      paymentMethod: order.paymentMethod,
+      motoboy: order.delivery?.motoboy
+        ? { name: order.delivery.motoboy.name, phone: order.delivery.motoboy.phone }
+        : null,
+    },
+    toStatus: OrderStatus.DELIVERED,
+  }).catch(() => undefined);
+
+  await audit({
+    userId: user.id,
+    action: "STATUS_CHANGE",
+    resource: "order",
+    entityId: order.id,
+    details: `Pedido #${order.number}: marcado como entregue pela fila operacional.`,
+  });
+
+  revalidatePath("/admin/fila-pedidos");
+  revalidatePath("/admin/pedidos");
+  revalidatePath(`/pedido/${order.id}`);
+  revalidatePath("/admin/dashboard");
+
+  return { ok: true, number: order.number };
+}
+
+/** Registra auditoria de impressão/reimpressão do comprovante. */
+export async function registerReceiptPrintAction(
+  orderId: string,
+  reprint = false
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await auth();
+  if (!session?.user || session.user.userType !== UserType.EMPLOYEE) {
+    return { ok: false, error: "Acesso restrito a colaboradores." };
+  }
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { number: true },
+  });
+  if (!order) return { ok: false, error: "Pedido não encontrado." };
+
+  await audit({
+    userId: session.user.id,
+    action: "UPDATE",
+    resource: "receipt",
+    entityId: orderId,
+    details: `Comprovante ${reprint ? "reimpresso" : "impresso"} — pedido #${order.number}.`,
+  });
+  return { ok: true };
+}
+
 export type OrderWithRelations = Order & {
   customer: { name: string; phone: string | null };
   items: { id: string; productName: string; quantity: number; unitPrice: number; subtotal: number }[];

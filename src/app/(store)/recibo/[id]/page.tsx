@@ -11,10 +11,13 @@ export const metadata: Metadata = { title: "Recibo" };
 
 export default async function ReceiptPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ autoPrint?: string }>;
 }) {
   const { id } = await params;
+  const { autoPrint } = await searchParams;
   const session = await auth();
 
   const [order, context] = await Promise.all([
@@ -67,6 +70,7 @@ export default async function ReceiptPage({
         receiptFooter: context.settings.receiptFooter,
         printTemplateId: context.settings.printTemplateId,
       }))}
+      autoPrint={autoPrint === "1"}
     />
   );
 }

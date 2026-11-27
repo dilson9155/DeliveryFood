@@ -14,6 +14,10 @@
  * A UI/log deve prosseguir normalmente (notificação é best-effort).
  */
 
+import { normalizePhone } from "@/lib/phone";
+
+export { normalizePhone } from "@/lib/phone";
+
 export type WhatsappResult = { ok: true } | { ok: false; error: string };
 
 type SendOptions = {
@@ -22,23 +26,6 @@ type SendOptions = {
   /** Telefone no formato DDI+DDD+número, ex: 5531999887766 */
   phone: string;
 };
-
-/** Normaliza qualquer formato de telefone para 55… (BR default) */
-export function normalizePhone(phone: string): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 0) return null;
-  // Se já começa com 55 e tem 12-13 dígitos, mantém
-  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
-    return digits;
-  }
-  // Se tem 10-11 dígitos (BR sem DDI), prefixa 55
-  if (digits.length === 10 || digits.length === 11) {
-    return `55${digits}`;
-  }
-  // Outros formatos: assume que já tem DDI
-  return digits;
-}
 
 function getConfig() {
   const url = process.env.EVOLUTION_API_URL;

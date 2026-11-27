@@ -16,6 +16,7 @@ import { CheckCircle2,
   Percent,
   Search,
   Truck,
+  ClipboardList,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -243,6 +244,12 @@ export function OrdersBoard({
               className="h-9 w-56 rounded-xl border border-border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
           </div>
+          <Link
+            href="/admin/fila-pedidos"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-brand-300 bg-brand-50 px-3 text-sm font-medium text-brand-700 hover:bg-brand-100"
+          >
+            <ClipboardList className="h-4 w-4" /> Fila simplificada
+          </Link>
           <Link
             href="/admin/entregas"
             className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted"

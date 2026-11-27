@@ -47,6 +47,7 @@ type ReceiptOrder = {
 export function Receipt({
   order,
   settings,
+  autoPrint = false,
 }: {
   order: ReceiptOrder;
   settings: {
@@ -65,6 +66,8 @@ export function Receipt({
     receiptFooter: string | null;
     printTemplateId: string | null;
   };
+  /** Abre o diálogo de impressão automaticamente ao carregar. */
+  autoPrint?: boolean;
 }) {
   const receiptRef = useRef<HTMLDivElement | null>(null);
   const [templateId, setTemplateId] = useState<string>(
@@ -86,6 +89,21 @@ export function Receipt({
     }
     el.textContent = templateCss(template);
   }, [template]);
+
+  // Fila operacional: abre a impressão assim que o recibo está pronto.
+  useEffect(() => {
+    if (!autoPrint) return;
+    const timer = window.setTimeout(() => {
+      if (receiptRef.current) {
+        import("@/lib/print").then((m) =>
+          m.printElement(receiptRef.current!, `Recibo-${orderNumberLabel(order.number)}`)
+        );
+      } else {
+        window.print();
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [autoPrint, order.id, order.number]);
 
   function padLine(left: string, right: string, width: number): string {
     const total = width;
