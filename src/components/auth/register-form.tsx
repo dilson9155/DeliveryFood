@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
 import { formatTaxId } from "@/lib/format";
 
-export function RegisterForm() {
+export function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction, isPending] = useActionState(registerAction, {});
   const [taxIdDisplay, setTaxIdDisplay] = useState("");
 
@@ -26,6 +26,7 @@ export function RegisterForm() {
       )}
 
       <form action={formAction} className="mt-5 space-y-4">
+        {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
         <div>
           <Label htmlFor="name">Nome completo</Label>
           <Input

@@ -29,7 +29,7 @@ export default async function AdminLayout({
 
   const settings = await prisma.settings.findUnique({
     where: { id: "default" },
-    select: { storeName: true, logoUrl: true },
+    select: { storeName: true, logoUrl: true, sidebarEnabled: true },
   });
 
   return (
@@ -41,6 +41,7 @@ export default async function AdminLayout({
         avatarUrl: user.avatarUrl,
       }}
       settings={settings ? { storeName: settings.storeName, logoUrl: settings.logoUrl } : undefined}
+      sidebarEnabled={settings?.sidebarEnabled ?? false}
     >
       {children}
     </AdminShell>

@@ -48,6 +48,7 @@ type SettingsData = {
   receiptMessage: string | null;
   receiptFooter: string | null;
   printTemplateId: string | null;
+  sidebarEnabled: boolean;
 };
 
 type HourRow = {
@@ -118,6 +119,7 @@ function SettingsPanelInner({
     receiptMessage: initial?.receiptMessage ?? "",
     receiptFooter: initial?.receiptFooter ?? "",
     printTemplateId: initial?.printTemplateId ?? DEFAULT_TEMPLATE_ID,
+    sidebarEnabled: initial?.sidebarEnabled ?? false,
   });
 
   const [hours, setHours] = useState<HourRow[]>(
@@ -221,6 +223,7 @@ function SettingsPanelInner({
         deliveryEnabled: form.deliveryEnabled,
         deliveryFee: Number(form.deliveryFee) || 0,
         printTemplateId: form.printTemplateId,
+        sidebarEnabled: form.sidebarEnabled,
         receiptMessage: form.receiptMessage || null,
         receiptFooter: form.receiptFooter || null,
       });
@@ -407,6 +410,27 @@ function SettingsPanelInner({
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <h3 className="mb-3 text-sm font-bold">Navegação do painel</h3>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background p-3">
+                <input
+                  type="checkbox"
+                  checked={form.sidebarEnabled}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, sidebarEnabled: e.target.checked }))
+                  }
+                  className="h-4 w-4 accent-[#FF9800]"
+                />
+                <span>
+                  <span className="block text-sm font-medium">Exibir menu lateral</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Por padrão, o painel abre somente no Menu geral. Ative para usar o menu lateral clássico.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </CardContent>

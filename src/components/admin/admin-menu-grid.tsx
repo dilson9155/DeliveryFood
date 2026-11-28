@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowUpRight,
   BarChart3,
   Bell,
@@ -11,7 +10,6 @@ import {
   CreditCard,
   FolderOpen,
   Grid2X2,
-  LayoutDashboard,
   LayoutGrid,
   MessagesSquare,
   Receipt,
@@ -84,7 +82,6 @@ const QUICK: ModuleItem[] = [
 ];
 
 const MODULES: ModuleItem[] = [
-  { href: "/admin/dashboard", label: "Dashboard", description: "Visão geral do dia e atalhos.", icon: LayoutDashboard, group: "Operação", permission: "dashboard.view" },
   { href: "/admin/pdv", label: "PDV", description: "Frente de caixa com produtos e marmitas.", icon: ShoppingCart, group: "Operação", permission: "orders.manage" },
   { href: "/admin/fila-pedidos", label: "Entregas", description: "Fila simples de pedidos com entrega.", icon: Truck, group: "Operação", permission: "orders.view" },
   { href: "/admin/comandas", label: "Comandas", description: "Abra, transfira e feche comandas.", icon: Receipt, group: "Operação", permission: "orders.manage" },
@@ -164,11 +161,6 @@ export function AdminMenuGrid({ user }: { user: SessionUser }) {
     <div className="container-app py-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/dashboard">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4" /> Voltar ao painel
-            </Button>
-          </Link>
           <Link href="/admin/pdv">
             <Button variant="ghost" size="sm">
               <ShoppingCart className="h-4 w-4" /> Ir para o PDV

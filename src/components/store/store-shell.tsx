@@ -163,7 +163,7 @@ export function StoreShell({
                         </Link>
                         {user.userType === "EMPLOYEE" ? (
                           <Link
-                            href="/admin/dashboard"
+                            href="/admin/menu-geral"
                             onClick={() => setMenuOpen(false)}
                             className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-muted"
                           >

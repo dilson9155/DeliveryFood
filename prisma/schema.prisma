@@ -599,6 +599,8 @@ model Settings {
   receiptMessage        String?
   receiptFooter         String?
   printTemplateId       String?  @default("thermal80")
+  // Menu lateral do painel: desativado por padrão; o menu geral é a tela inicial.
+  sidebarEnabled        Boolean  @default(false)
   // Self-service: preços configuráveis de forma independente do catálogo.
   selfServicePricePerKg Float    @default(0)
   selfServiceFixedPrice Float    @default(0)

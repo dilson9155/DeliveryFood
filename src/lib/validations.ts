@@ -111,6 +111,7 @@ export const settingsSchema = z.object({
   receiptMessage: z.string().max(300).optional().nullable(),
   receiptFooter: z.string().max(300).optional().nullable(),
   printTemplateId: z.enum(["thermal80", "thermal58", "thermal76", "a4"]).optional().nullable(),
+  sidebarEnabled: z.boolean().optional(),
 });
 
 export const businessHoursSchema = z.object({

@@ -90,6 +90,7 @@ function OrderRow({ order: o }: { order: MyOrder }) {
           imageUrl: item.imageUrl,
           quantity: item.quantity,
           options: item.options,
+          special: item.special,
         });
       }
       const skipped = o.items.length - res.items.length;

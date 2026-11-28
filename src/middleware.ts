@@ -24,13 +24,13 @@ export async function middleware(req: NextRequest) {
     }
 
     if (pathname.startsWith("/admin/colaboradores") && role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     if (pathname.startsWith("/admin/configuracoes") && role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     if (pathname.startsWith("/admin/relatorios") && role !== "ADMIN" && role !== "MANAGER") {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     if (
       pathname.startsWith("/admin/clientes") &&
@@ -38,7 +38,7 @@ export async function middleware(req: NextRequest) {
       role !== "MANAGER" &&
       role !== "ATTENDANT"
     ) {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     if (
       pathname.startsWith("/admin/caixa") &&
@@ -46,10 +46,10 @@ export async function middleware(req: NextRequest) {
       role !== "MANAGER" &&
       role !== "CASHIER"
     ) {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     if (pathname.startsWith("/admin/pedidos") && !role) {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin/menu-geral", req.url));
     }
     return NextResponse.next();
   }

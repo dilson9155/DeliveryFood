@@ -48,10 +48,12 @@ const COLLAPSE_KEY = "df.adminSidebarCollapsed";
 export function AdminShell({
   user,
   settings,
+  sidebarEnabled = false,
   children,
 }: {
   user: { id: string; name: string; role: SessionUser["role"]; avatarUrl?: string | null };
   settings?: { storeName: string; logoUrl: string | null };
+  sidebarEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -93,7 +95,6 @@ export function AdminShell({
 
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
-    { href: "/admin/menu-geral", label: "Menu geral", icon: <Grid2X2 className="h-5 w-5" />, permission: "dashboard.view" },
     { href: "/admin/pdv", label: "PDV", icon: <ShoppingCart className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/fila-pedidos", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/cardapio-do-dia", label: "Cardápio do dia", icon: <Soup className="h-5 w-5" />, permission: "products.manage" },
@@ -273,18 +274,20 @@ export function AdminShell({
 
   return (
     <div className="flex min-h-screen bg-muted/40">
-      {/* Sidebar desktop */}
-      <aside
-        className={cn(
-          "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card transition-[width] duration-200 ease-out lg:block",
-          isCollapsed ? "w-16" : "w-64"
-        )}
-      >
-        {Sidebar}
-      </aside>
+      {/* Sidebar desktop — só aparece quando ativada nas configurações */}
+      {sidebarEnabled && (
+        <aside
+          className={cn(
+            "sticky top-0 hidden h-screen shrink-0 border-r border-border bg-card transition-[width] duration-200 ease-out lg:block",
+            isCollapsed ? "w-16" : "w-64"
+          )}
+        >
+          {Sidebar}
+        </aside>
+      )}
 
-      {/* Sidebar mobile */}
-      {sidebarOpen && (
+      {/* Sidebar mobile — só aparece quando ativada nas configurações */}
+      {sidebarEnabled && sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-72 bg-card shadow-xl animate-fade-in">
@@ -301,12 +304,15 @@ export function AdminShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-muted lg:hidden"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          {sidebarEnabled && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-muted lg:hidden"
+              aria-label="Abrir menu lateral"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
 
           {/* Nome do sistema (preenche o espaço vazio) - à esquerda em telas grandes */}
           <div className="flex min-w-0 items-center gap-2.5 lg:gap-3">
@@ -329,7 +335,7 @@ export function AdminShell({
           <div className="flex-1" />
 
           {/* Quando colapsado, mostra nome + cargo do usuário */}
-          {isCollapsed && (
+          {sidebarEnabled && isCollapsed && (
             <div className="hidden items-center gap-2 lg:flex">
               <Avatar name={user.name} src={user.avatarUrl} size="sm" />
               <div className="min-w-0">
@@ -337,6 +343,33 @@ export function AdminShell({
                 <p className="truncate text-[11px] text-muted-foreground">{ROLE_LABELS[user.role ?? "ATTENDANT"]}</p>
               </div>
             </div>
+          )}
+
+          {/* Sem a lateral, o menu general é o único ponto de entrada do painel */}
+          {!sidebarEnabled && (
+            <>
+              <Link
+                href="/admin/menu-geral"
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted",
+                  pathname === "/admin/menu-geral"
+                    ? "text-brand-700"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Grid2X2 className="h-4 w-4" /> Menu geral
+              </Link>
+              <form action={async () => { await logoutAction(); }}>
+                <button
+                  type="submit"
+                  title="Sair do painel"
+                  aria-label="Sair do painel"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-danger hover:bg-danger/5"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </form>
+            </>
           )}
 
           <Link

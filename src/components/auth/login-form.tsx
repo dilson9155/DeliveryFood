@@ -7,7 +7,7 @@ import { loginAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/form";
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction, isPending] = useActionState(loginAction, {});
 
   return (
@@ -25,6 +25,7 @@ export function LoginForm() {
       )}
 
       <form action={formAction} className="mt-5 space-y-4">
+        {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
         <div>
           <Label htmlFor="identifier">Telefone, e-mail ou login</Label>
           <Input
@@ -66,7 +67,10 @@ export function LoginForm() {
 
       <p className="mt-5 text-center text-sm text-muted-foreground">
         Ainda não tem conta?{" "}
-        <Link href="/cadastro" className="font-medium text-brand-600 hover:underline">
+        <Link
+          href={callbackUrl ? `/cadastro?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/cadastro"}
+          className="font-medium text-brand-600 hover:underline"
+        >
           Cadastre-se
         </Link>
       </p>

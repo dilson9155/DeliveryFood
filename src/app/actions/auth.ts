@@ -21,6 +21,13 @@ export type AuthFormState = {
   devResetLink?: string;
 };
 
+/** Aceita somente caminhos internos, para evitar redirecionamentos externos. */
+function safeCallbackUrl(formData: FormData): string | null {
+  const value = formData.get("callbackUrl");
+  if (typeof value !== "string") return null;
+  return value.startsWith("/") && !value.startsWith("//") ? value : null;
+}
+
 export async function loginAction(
   _prev: AuthFormState,
   formData: FormData
@@ -52,9 +59,13 @@ export async function loginAction(
   // para decidir o destino do redirect.
   const user = await findUserByIdentifier(parsed.data.identifier);
 
-  let target = "/";
+  // Volta para onde o cliente estava (ex.: /checkout após ser encaminhado
+  // para o login pelo middleware). Aceita apenas caminhos internos.
+  const callback = safeCallbackUrl(formData);
+
+  let target = callback ?? "/";
   if (user?.userType === "EMPLOYEE") {
-    target = "/admin/dashboard";
+    target = callback?.startsWith("/admin") ? callback : "/admin/menu-geral";
   }
   redirect(target);
 }
@@ -134,7 +145,7 @@ export async function registerAction(
     throw error;
   }
 
-  redirect("/");
+  redirect(safeCallbackUrl(formData) ?? "/");
 }
 
 export async function forgotPasswordAction(

@@ -1,9 +1,9 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { DashboardView } from "@/components/admin/dashboard-view";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = { title: "Painel administrativo" };
 
 export default async function DashboardPage() {
-  return <DashboardView />;
+  redirect("/admin/menu-geral");
 }

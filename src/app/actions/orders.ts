@@ -810,6 +810,7 @@ export async function getOrderForReorderAction(
           quantity: number;
           unitPrice: number;
         }[];
+        special?: { kind: "DAILY"; mealId: string; sizeId: string };
       }[];
     }
   | { ok: false; error: string }
@@ -835,13 +836,54 @@ export async function getOrderForReorderAction(
     return { ok: false, error: "Pedido não encontrado." };
   }
 
-  const items = order.items
-    .filter((i) => i.product && i.product.active)
-    .map((i) => ({
-      productId: i.product!.id,
-      productName: i.product!.name,
-      unitPrice: i.product!.price + i.options.reduce((s, o) => s + o.unitPrice * o.quantity, 0),
-      imageUrl: i.product!.imageUrl,
+  type ReorderItem = {
+    productId: string;
+    productName: string;
+    unitPrice: number;
+    imageUrl: string | null;
+    quantity: number;
+    options: {
+      groupId: string;
+      optionId: string;
+      groupName: string;
+      optionName: string;
+      quantity: number;
+      unitPrice: number;
+    }[];
+    special?: { kind: "DAILY"; mealId: string; sizeId: string };
+  };
+
+  const items: ReorderItem[] = [];
+
+  for (const i of order.items) {
+    // Marmitas do dia não têm produto no catálogo: reconstrói o item especial
+    // para que o checkout recalcule preço e estoque novamente.
+    if (i.dailyMenuMealId && i.dailyMenuSizeId) {
+      items.push({
+        productId: `daily:${i.dailyMenuMealId}:${i.dailyMenuSizeId}`,
+        productName: i.productName,
+        unitPrice: i.unitPrice,
+        imageUrl: null,
+        quantity: i.quantity,
+        options: [],
+        special: {
+          kind: "DAILY",
+          mealId: i.dailyMenuMealId,
+          sizeId: i.dailyMenuSizeId,
+        },
+      });
+      continue;
+    }
+
+    if (!i.product || !i.product.active) continue;
+
+    items.push({
+      productId: i.product.id,
+      productName: i.product.name,
+      unitPrice: roundMoney(
+        i.product.price + i.options.reduce((s, o) => s + o.unitPrice * o.quantity, 0)
+      ),
+      imageUrl: i.product.imageUrl,
       quantity: i.quantity,
       options: i.options.map((o) => ({
         groupId: o.groupId ?? o.groupName,
@@ -851,7 +893,8 @@ export async function getOrderForReorderAction(
         quantity: o.quantity,
         unitPrice: o.unitPrice,
       })),
-    }));
+    });
+  }
 
   return { ok: true, items };
 }
