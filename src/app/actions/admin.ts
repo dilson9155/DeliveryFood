@@ -16,7 +16,9 @@ import {
 import { roundMoney } from "@/lib/format";
 import { UserType, EmployeeRole } from "@prisma/client";
 
-export type AdminResult = { ok: true; id?: string } | { ok: false; error: string };
+export type AdminResult =
+  | { ok: true; id?: string; movedProducts?: number }
+  | { ok: false; error: string };
 
 async function requireEmployee(permission: "products.manage" | "categories.manage" | "employees.manage" | "settings.manage" | "cash.movements" | "delivery.assign"): Promise<SessionUser | AdminResult> {
   const session = await auth();
@@ -164,6 +166,31 @@ export async function toggleProductActiveAction(
   return { ok: true };
 }
 
+export async function deleteProductAction(id: string): Promise<AdminResult> {
+  const user = await requireEmployee("products.manage");
+  if (!isUserResult(user)) return user;
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    select: { id: true, name: true },
+  });
+  if (!product) return { ok: false, error: "Produto não encontrado." };
+
+  await prisma.product.delete({ where: { id } });
+  await audit({
+    userId: user.id,
+    action: "DELETE",
+    resource: "product",
+    entityId: id,
+    details: `Produto "${product.name}" excluído permanentemente`,
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin/produtos");
+  revalidatePath("/admin/pdv");
+  return { ok: true };
+}
+
 // ---------------- Categorias ----------------
 
 export async function saveCategoryAction(data: {
@@ -250,6 +277,72 @@ export async function toggleCategoryActiveAction(
   revalidatePath("/");
   revalidatePath("/admin/categorias");
   return { ok: true };
+}
+
+export async function deleteCategoryAction(id: string): Promise<AdminResult> {
+  const user = await requireEmployee("categories.manage");
+  if (!isUserResult(user)) return user;
+
+  const category = await prisma.category.findUnique({
+    where: { id },
+    select: { id: true, name: true, _count: { select: { products: true } } },
+  });
+  if (!category) return { ok: false, error: "Categoria não encontrada." };
+
+  let movedProducts = 0;
+  if (category._count.products > 0) {
+    // O produto exige categoria (Restrict). Move para outra categoria ativa,
+    // criando uma fallback quando não houver outra disponível.
+    const target = await prisma.category.findFirst({
+      where: { id: { not: id }, active: true },
+      orderBy: { order: "asc" },
+      select: { id: true },
+    });
+    const fallback = target
+      ? null
+      : await prisma.category.findFirst({
+          where: { id: { not: id }, name: "Sem categoria" },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        });
+    const targetId =
+      target?.id ??
+      fallback?.id ??
+      (
+        await prisma.category.create({
+          data: { name: "Sem categoria", icon: "📦", order: 9999, active: true },
+          select: { id: true },
+        })
+      ).id;
+
+    // Reaproveita a fallback existente, reativando-a se estiver desativada.
+    if (fallback) {
+      await prisma.category.update({ where: { id: fallback.id }, data: { active: true } });
+    }
+
+    movedProducts = (
+      await prisma.product.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: targetId },
+      })
+    ).count;
+  }
+
+  await prisma.category.delete({ where: { id } });
+  await audit({
+    userId: user.id,
+    action: "DELETE",
+    resource: "category",
+    entityId: id,
+    details:
+      `Categoria "${category.name}" excluída` +
+      (movedProducts ? ` (${movedProducts} produto(s) movido(s))` : ""),
+  });
+
+  revalidatePath("/");
+  revalidatePath("/admin/categorias");
+  revalidatePath("/admin/produtos");
+  return { ok: true, movedProducts };
 }
 
 // ---------------- Colaboradores ----------------
@@ -436,7 +529,14 @@ export async function deleteEmployeeAction(input: {
 export async function deleteCustomerAction(input: {
   id: string;
   confirmPhone: string;
-}): Promise<AdminResult & { name?: string; addressesRemoved?: number }> {
+}): Promise<
+  AdminResult & {
+    name?: string;
+    addressesRemoved?: number;
+    ordersKept?: number;
+    receivablesKept?: number;
+  }
+> {
   const user = await requireAnyEmployee();
   if (!isUserResult(user)) return user;
 
@@ -447,40 +547,74 @@ export async function deleteCustomerAction(input: {
       userType: true,
       name: true,
       phone: true,
-      active: true,
-      _count: { select: { orders: true, addresses: true, receivables: true, notifications: true, campaignRecipients: true } },
+      _count: { select: { orders: true, addresses: true, receivables: true, notifications: true } },
     },
   });
   if (!customer || customer.userType !== UserType.CUSTOMER) {
     return { ok: false, error: "Cliente não encontrado." };
   }
 
+  // Clientes sem telefone confirmam digitando o nome exatamente como cadastrado.
+  const confirmation = input.confirmPhone.trim();
   const refPhone = (customer.phone ?? "").replace(/\D/g, "");
-  const inputPhone = input.confirmPhone.replace(/\D/g, "");
-  if (!refPhone || refPhone !== inputPhone) {
-    return { ok: false, error: `Confirmação inválida. Digite o telefone cadastrado (somente números) para excluir.` };
-  }
-
-  if (customer._count.orders > 0 || customer._count.receivables > 0) {
+  if (refPhone) {
+    if (confirmation.replace(/\D/g, "") !== refPhone) {
+      return { ok: false, error: "Confirmação inválida. Digite o telefone cadastrado (somente números) para excluir." };
+    }
+  } else if (confirmation.toLowerCase() !== customer.name.trim().toLowerCase()) {
     return {
       ok: false,
-      error: `Este cliente possui ${customer._count.orders} pedido(s) e ${customer._count.receivables} recebível(is). Exclua os pedidos primeiro ou desative o cliente.`,
+      error: `Confirmação inválida. Digite exatamente o nome "${customer.name}" para excluir.`,
     };
   }
 
+  // Pedidos e recebíveis usam o cliente como FK (Restrict) e fazem parte do
+  // histórico financeiro. Em vez de apagar o registro, anonimizamos o cadastro:
+  // some da lista/PDV, perde os dados pessoais e mantém os vínculos íntegros.
   const addressesRemoved = customer._count.addresses;
+  await prisma.$transaction([
+    prisma.address.deleteMany({ where: { userId: customer.id } }),
+    prisma.notification.deleteMany({ where: { userId: customer.id } }),
+    prisma.campaignRecipient.updateMany({
+      where: { customerId: customer.id },
+      data: { name: "Cliente excluído", phone: "" },
+    }),
+    prisma.user.update({
+      where: { id: customer.id },
+      data: {
+        name: "Cliente excluído",
+        phone: null,
+        email: null,
+        taxId: null,
+        avatarUrl: null,
+        defaultObservation: null,
+        active: false,
+        login: `__deleted_${customer.id}`,
+      },
+    }),
+  ]);
 
-  await prisma.user.delete({ where: { id: customer.id } });
   await audit({
     userId: user.id,
     action: "DELETE",
     resource: "customer",
     entityId: customer.id,
-    details: `Cliente "${customer.name}" excluído (${addressesRemoved} endereço(s), ${customer._count.notifications} notificação(ões) removidas)`,
+    details:
+      `Cliente "${customer.name}" excluído (dados pessoais anonimizados; ` +
+      `${addressesRemoved} endereço(s) removido(s), ` +
+      `${customer._count.orders} pedido(s) e ${customer._count.receivables} recebível(is) mantidos)`,
   });
 
   revalidatePath("/admin/clientes");
-  return { ok: true, name: customer.name, addressesRemoved };
+  revalidatePath("/admin/pdv");
+  revalidatePath("/admin/financeiro/receber");
+  return {
+    ok: true,
+    name: customer.name,
+    addressesRemoved,
+    ordersKept: customer._count.orders,
+    receivablesKept: customer._count.receivables,
+  };
 }
 
 // ---------------- Configurações ----------------

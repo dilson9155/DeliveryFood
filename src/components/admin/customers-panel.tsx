@@ -10,7 +10,7 @@ import { AlertBannerProvider, useAlertBanner } from "@/components/ui/alert-banne
 import { Avatar } from "@/components/ui/avatar";
 import { AvatarUploader } from "@/components/ui/avatar-uploader";
 import { EmptyState } from "@/components/ui/empty";
-import { formatDate, formatPhone, cn } from "@/lib/format";
+import { formatDate, formatPhone } from "@/lib/format";
 import { deleteCustomerAction } from "@/app/actions/admin";
 import { updateUserAvatarAction } from "@/app/actions/avatar";
 
@@ -44,6 +44,12 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
   const [confirmDelete, setConfirmDelete] = useState<Customer | null>(null);
   const [delConfirmPhone, setDelConfirmPhone] = useState("");
   const [deleting, startDeleting] = useTransition();
+
+  const deleteConfirmationMatches = confirmDelete
+    ? confirmDelete.phone
+      ? delConfirmPhone.replace(/\D/g, "") === confirmDelete.phone.replace(/\D/g, "")
+      : delConfirmPhone.trim().toLowerCase() === confirmDelete.name.trim().toLowerCase()
+    : false;
 
   const filtered = useMemo(
     () =>
@@ -87,7 +93,6 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((c) => {
-            const canDelete = c._count.orders === 0;
             return (
               <Card key={c.id}>
                 <CardContent className="p-4">
@@ -111,22 +116,14 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
                     <Button
                       size="sm"
                       variant="ghost"
-                      title={canDelete ? "Excluir cliente" : "Cliente possui pedidos — não pode ser excluído"}
+                      title="Excluir cliente"
+                      aria-label={`Excluir ${c.name}`}
                       onClick={() => {
-                        if (!canDelete) {
-                          banner.show({
-                            type: "warning",
-                            title: "Exclusão bloqueada",
-                            message: `${c.name} possui ${c._count.orders} pedido(s). Exclua os pedidos (ou use a limpeza de dados de teste) antes de remover o cadastro.`,
-                            duration: 7000,
-                          });
-                          return;
-                        }
                         setConfirmDelete(c);
                         setDelConfirmPhone("");
                       }}
                     >
-                      <Trash2 className={cn("h-4 w-4", canDelete ? "text-danger" : "text-muted-foreground")} />
+                      <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </div>
                 </CardContent>
@@ -149,12 +146,15 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
             </div>
             <div className="space-y-4 p-5">
               <p className="text-sm text-muted-foreground">
-                Esta ação é <strong className="text-danger">irreversível</strong>. Será removido:
+                Esta ação é <strong className="text-danger">irreversível</strong>. O cadastro sairá da lista e os dados pessoais serão anonimizados. Para não quebrar o histórico, pedidos e recebíveis serão mantidos.
               </p>
               <ul className="space-y-1 rounded-xl border border-border bg-muted/40 p-3 text-sm">
                 <li><strong>{confirmDelete.name}</strong></li>
                 <li className="text-muted-foreground">
                   {confirmDelete.phone ? formatPhone(confirmDelete.phone) : "—"} · {confirmDelete.email ?? "sem e-mail"}
+                </li>
+                <li className="text-muted-foreground">
+                  {confirmDelete._count.orders} pedido(s) · {confirmDelete._count.receivables} recebível(is) preservado(s)
                 </li>
               </ul>
               <AvatarUploader
@@ -177,14 +177,16 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
               />
               <div>
                 <Label htmlFor="del-cust-confirm">
-                  Digite o telefone do cliente (somente números) para confirmar
+                  {confirmDelete.phone
+                    ? "Digite o telefone do cliente (somente números) para confirmar"
+                    : `Digite exatamente o nome "${confirmDelete.name}" para confirmar`}
                 </Label>
                 <Input
                   id="del-cust-confirm"
                   value={delConfirmPhone}
                   onChange={(e) => setDelConfirmPhone(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="31988888888"
+                  inputMode={confirmDelete.phone ? "numeric" : "text"}
+                  placeholder={confirmDelete.phone ? "31988888888" : confirmDelete.name}
                   autoFocus
                 />
               </div>
@@ -193,12 +195,7 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
                   className="flex-1"
                   size="lg"
                   variant="danger"
-                  disabled={
-                    deleting ||
-                    !confirmDelete.phone ||
-                    delConfirmPhone.replace(/\D/g, "") !==
-                      (confirmDelete.phone ?? "").replace(/\D/g, "")
-                  }
+                  disabled={deleting || !deleteConfirmationMatches}
                   onClick={() => {
                     const target = confirmDelete;
                     startDeleting(async () => {
@@ -210,9 +207,11 @@ function CustomersPanelInner({ customers: initial }: { customers: Customer[] }) 
                         banner.show({
                           type: "success",
                           title: "Cliente excluído",
-                          message: `${target.name} foi removido do sistema.`,
+                          message: `${target.name} foi removido da lista. O histórico foi preservado.`,
                           details: [
                             { label: "Endereços removidos", value: res.addressesRemoved ?? 0 },
+                            { label: "Pedidos preservados", value: res.ordersKept ?? 0 },
+                            { label: "Recebíveis preservados", value: res.receivablesKept ?? 0 },
                           ],
                           duration: 0,
                         });

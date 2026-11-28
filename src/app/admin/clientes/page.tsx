@@ -8,7 +8,9 @@ export const metadata: Metadata = { title: "Clientes" };
 
 export default async function CustomersPage() {
   const customers = await prisma.user.findMany({
-    where: { userType: UserType.CUSTOMER },
+    // Clientes excluídos são anonimizados com um login marker; não devem
+    // aparecer na lista nem ser selecionados em PDV/PDV-like.
+    where: { userType: UserType.CUSTOMER, login: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

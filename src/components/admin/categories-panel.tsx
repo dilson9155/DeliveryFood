@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Plus, Pencil, Power, PowerOff, X } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Plus, Pencil, Power, PowerOff, X, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
-import { saveCategoryAction, toggleCategoryActiveAction } from "@/app/actions/admin";
+import { saveCategoryAction, toggleCategoryActiveAction, deleteCategoryAction } from "@/app/actions/admin";
 
 type Category = {
   id: string;
@@ -21,10 +21,14 @@ type Category = {
 
 export function CategoriesPanel({ categories: initial }: { categories: Category[] }) {
   const { show } = useToast();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [categories, setCategories] = useState(initial);
   const [editing, setEditing] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // A exclusão pode criar a categoria "Sem categoria" no servidor; mantém a
+  // lista local sincronizada com o estado mais recente do catálogo.
+  useEffect(() => setCategories(initial), [initial]);
 
   return (
     <div className="space-y-5">
@@ -86,6 +90,35 @@ export function CategoriesPanel({ categories: initial }: { categories: Category[
                   }
                 >
                   {c.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-danger hover:bg-danger/10"
+                  title={`Excluir ${c.name}`}
+                  aria-label={`Excluir ${c.name}`}
+                  disabled={isPending}
+                  onClick={() => {
+                    const detail =
+                      c._count.products > 0
+                        ? ` Os ${c._count.products} produto(s) serão movidos para outra categoria.`
+                        : "";
+                    if (!window.confirm(`Excluir a categoria "${c.name}"?${detail}`)) return;
+                    startTransition(async () => {
+                      const res = await deleteCategoryAction(c.id);
+                      if (res.ok) {
+                        setCategories((prev) => prev.filter((x) => x.id !== c.id));
+                        show(
+                          "success",
+                          res.movedProducts
+                            ? `Categoria excluída. ${res.movedProducts} produto(s) movido(s).`
+                            : "Categoria excluída."
+                        );
+                      } else show("error", res.error);
+                    });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </CardContent>

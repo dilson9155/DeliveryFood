@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Star, Power, PowerOff, ImageOff, Search, X, ListChecks } from "lucide-react";
+import { Plus, Pencil, Star, Power, PowerOff, ImageOff, Search, X, ListChecks, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Input, Select, Label, Textarea } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty";
 import { formatCurrency } from "@/lib/format";
-import { saveProductAction, toggleProductActiveAction } from "@/app/actions/admin";
+import { saveProductAction, toggleProductActiveAction, deleteProductAction } from "@/app/actions/admin";
 
 type Product = {
   id: string;
@@ -35,22 +35,27 @@ export function ProductsPanel({
   categories: Category[];
 }) {
   const { show } = useToast();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
+  const [items, setItems] = useState(products);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // A ação de exclusão usa revalidatePath; mantém a lista local sincronizada
+  // tanto com a resposta do servidor quanto com um refresh posterior.
+  useEffect(() => setItems(products), [products]);
+
   const filtered = useMemo(
     () =>
-      products.filter((p) => {
+      items.filter((p) => {
         const q = query.toLowerCase();
         return (
           (!categoryFilter || p.categoryId === categoryFilter) &&
           (!q || p.name.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q))
         );
       }),
-    [products, query, categoryFilter]
+    [items, query, categoryFilter]
   );
 
   return (
@@ -142,6 +147,26 @@ export function ProductsPanel({
                       }
                     >
                       {p.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-danger hover:bg-danger/10"
+                      title={`Excluir ${p.name}`}
+                      aria-label={`Excluir ${p.name}`}
+                      disabled={isPending}
+                      onClick={() => {
+                        if (!window.confirm(`Excluir o produto "${p.name}"? Esta ação não pode ser desfeita.`)) return;
+                        startTransition(async () => {
+                          const res = await deleteProductAction(p.id);
+                          if (res.ok) {
+                            setItems((prev) => prev.filter((x) => x.id !== p.id));
+                            show("success", `Produto "${p.name}" excluído.`);
+                          } else show("error", res.error);
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
