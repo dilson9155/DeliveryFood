@@ -99,7 +99,7 @@ export function DashboardView() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Pedidos recentes</CardTitle>
-            <Link href="/admin/pedidos" className="text-xs text-brand-600 hover:underline">
+            <Link href="/admin/fila-pedidos" className="text-xs text-brand-600 hover:underline">
               Ver todos
             </Link>
           </CardHeader>
@@ -113,7 +113,7 @@ export function DashboardView() {
                 {(stats.recentOrders as RecentOrder[]).map((o) => (
                   <li key={o.id}>
                     <Link
-                      href={`/admin/pedidos?order=${o.id}`}
+                      href="/admin/fila-pedidos"
                       className="flex items-center gap-3 py-2.5 hover:bg-muted/50"
                     >
                       <span className="text-sm font-bold text-brand-700">

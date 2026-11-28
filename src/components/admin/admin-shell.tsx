@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ShoppingBag,
   ShoppingCart,
   UtensilsCrossed,
   FolderOpen,
@@ -95,7 +94,6 @@ export function AdminShell({
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
     { href: "/admin/pdv", label: "PDV", icon: <ShoppingCart className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/fila-pedidos", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "orders.view" },
-    { href: "/admin/pedidos", label: "Pedidos", icon: <ShoppingBag className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/cardapio-do-dia", label: "Cardápio do dia", icon: <Soup className="h-5 w-5" />, permission: "products.manage" },
     { href: "/admin/autoatendimento", label: "Self-service", icon: <Scale className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/comandas", label: "Comandas", icon: <Receipt className="h-5 w-5" />, permission: "orders.manage" },
