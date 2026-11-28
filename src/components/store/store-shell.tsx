@@ -204,6 +204,14 @@ export function StoreShell({
                     ) : (
                       <>
                         <Link
+                          href="/marmitas-do-dia"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+                        >
+                          <UtensilsCrossed className="h-4 w-4" />
+                          Marmitas do dia
+                        </Link>
+                        <Link
                           href="/login"
                           onClick={() => setMenuOpen(false)}
                           className="block px-4 py-2.5 text-sm font-medium hover:bg-muted"

@@ -12,6 +12,7 @@ import {
   CreditCard,
   ImageIcon,
   Loader2,
+  LogIn,
   MapPin,
   Minus,
   Plus,
@@ -88,7 +89,7 @@ export function MarmitasDoDia({
 }: {
   date: string;
   menu: Menu | null;
-  customer: { name: string; phone: string | null; defaultObservation: string | null };
+  customer: { name: string; phone: string | null; defaultObservation: string | null } | null;
   open: boolean;
   statusMessage: string;
   deliveryEnabled: boolean;
@@ -104,7 +105,7 @@ export function MarmitasDoDia({
   const [mealId, setMealId] = useState("");
   const [sizeId, setSizeId] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [observation, setObservation] = useState(customer.defaultObservation ?? "");
+  const [observation, setObservation] = useState(customer?.defaultObservation ?? "");
   const [mode, setMode] = useState<"PICKUP" | "DELIVERY">(deliveryEnabled ? "DELIVERY" : "PICKUP");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
   const [address, setAddress] = useState({
@@ -142,6 +143,10 @@ export function MarmitasDoDia({
   function submit() {
     if (!open) {
       show("error", statusMessage);
+      return;
+    }
+    if (!customer) {
+      router.push("/login?callbackUrl=/marmitas-do-dia");
       return;
     }
     if (!selectedMeal || !selectedSize || !selectedPrice) {
@@ -566,13 +571,21 @@ export function MarmitasDoDia({
               className="mt-4 w-full"
               size="lg"
               onClick={submit}
-              disabled={pending || !selectedMeal || !selectedPrice || soldOut}
+              disabled={pending || (customer !== null && (!selectedMeal || !selectedPrice || soldOut))}
             >
-              {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-              Confirmar pedido
+              {pending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : customer ? (
+                <CheckCircle2 className="h-5 w-5" />
+              ) : (
+                <LogIn className="h-5 w-5" />
+              )}
+              {customer ? "Confirmar pedido" : "Entrar para pedir"}
             </Button>
             <p className="mt-2 text-center text-[10px] text-muted-foreground">
-              Preço e disponibilidade são confirmados ao registrar o pedido.
+              {customer
+                ? "Preço e disponibilidade são confirmados ao registrar o pedido."
+                : "Você pode ver o cardápio sem entrar. Faça login para finalizar o pedido."}
             </p>
           </div>
         </aside>
