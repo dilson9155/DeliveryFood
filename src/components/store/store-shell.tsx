@@ -232,14 +232,6 @@ export function StoreShell({
               )}
             </div>
 
-            <Link
-              href="/marmitas-do-dia"
-              className="hidden h-10 items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3 text-xs font-bold text-brand-800 hover:bg-brand-100 sm:flex"
-            >
-              <UtensilsCrossed className="h-4 w-4" />
-              Marmitas do dia
-            </Link>
-
             {user && (
               <Link
                 href="/notificacoes"
