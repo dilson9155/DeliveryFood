@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { can, type SessionUser } from "@/lib/permissions";
+import { businessDate } from "@/lib/daily-menu";
 import { ComandaStatus, UserType } from "@prisma/client";
 import { PosPanel, type PosComanda } from "@/components/admin/pos-panel";
 
@@ -27,7 +28,7 @@ export default async function PosPage({
 
   const { comanda: comandaId } = await searchParams;
 
-  const [products, customers, comandaRow] = await Promise.all([
+  const [products, customers, comandaRow, dailyMenu, selfServiceSettings] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
       orderBy: [{ order: "asc" }, { name: "asc" }],
@@ -64,7 +65,39 @@ export default async function PosPage({
           },
         })
       : Promise.resolve(null),
+    prisma.dailyMenu.findUnique({
+      where: { date: businessDate() },
+      include: {
+        meals: {
+          where: { active: true },
+          orderBy: [{ order: "asc" }, { name: "asc" }],
+          include: { prices: true },
+        },
+        sizes: {
+          where: { active: true },
+          orderBy: [{ order: "asc" }, { name: "asc" }],
+        },
+      },
+    }),
+    prisma.settings.findUnique({
+      where: { id: "default" },
+      select: { selfServicePricePerKg: true, selfServiceFixedPrice: true },
+    }),
   ]);
+
+  const dailyMeals = dailyMenu?.active
+    ? dailyMenu.meals.map((meal) => ({
+        menuId: dailyMenu.id,
+        mealId: meal.id,
+        name: meal.name,
+        description: meal.description,
+        availableQty: meal.availableQty,
+        sizes: dailyMenu.sizes.flatMap((size) => {
+          const price = meal.prices.find((row) => row.sizeId === size.id);
+          return price ? [{ id: size.id, name: size.name, price: price.price }] : [];
+        }),
+      }))
+    : [];
 
   const comanda: PosComanda | null = comandaRow
     ? {
@@ -104,6 +137,11 @@ export default async function PosPage({
       <PosPanel
         canConfirmPayments={canConfirmPayments}
         comanda={JSON.parse(JSON.stringify(comanda)) as PosComanda | null}
+        dailyMeals={JSON.parse(JSON.stringify(dailyMeals))}
+        selfServicePrices={{
+          pricePerKg: selfServiceSettings?.selfServicePricePerKg ?? 0,
+          fixedPrice: selfServiceSettings?.selfServiceFixedPrice ?? 0,
+        }}
         products={JSON.parse(
           JSON.stringify(
             products.map((product) => ({

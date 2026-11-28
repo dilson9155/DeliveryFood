@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Grid2X2,
   ShoppingCart,
   UtensilsCrossed,
   FolderOpen,
@@ -92,6 +93,7 @@ export function AdminShell({
 
   const nav: NavItem[] = [
     { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, permission: "dashboard.view" },
+    { href: "/admin/menu-geral", label: "Menu geral", icon: <Grid2X2 className="h-5 w-5" />, permission: "dashboard.view" },
     { href: "/admin/pdv", label: "PDV", icon: <ShoppingCart className="h-5 w-5" />, permission: "orders.manage" },
     { href: "/admin/fila-pedidos", label: "Entregas", icon: <Truck className="h-5 w-5" />, permission: "orders.view" },
     { href: "/admin/cardapio-do-dia", label: "Cardápio do dia", icon: <Soup className="h-5 w-5" />, permission: "products.manage" },

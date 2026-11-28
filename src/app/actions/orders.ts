@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { can, type SessionUser } from "@/lib/permissions";
 import { createOrderSchema } from "@/lib/validations";
+import { priceDailyItems, reserveDailyStock } from "@/lib/daily-menu-pricing";
 import { roundMoney } from "@/lib/format";
 import { getStoreContext } from "@/lib/store-status";
 import {
@@ -26,6 +27,8 @@ import type { OptionSelection } from "@/lib/product-options";
 
 export type CreateOrderInput = {
   items: { productId: string; quantity: number; options?: OptionSelection[] }[];
+  /** Marmitas do dia: mesmas regras de preço/estoque do PDV. */
+  specialItems?: { mealId: string; sizeId: string; quantity: number }[];
   paymentMethod: PaymentMethod;
   observation?: string | null;
   // Snapshot exibido no recibo (nome/telefone/endereço informados no checkout).
@@ -95,11 +98,13 @@ export async function createOrderAction(
   // envia apenas os ids e as quantidades escolhidas.
   let total = 0;
   const orderItems: {
-    productId: string;
+    productId: string | null;
     productName: string;
     unitPrice: number;
     quantity: number;
     subtotal: number;
+    dailyMenuMealId?: string | null;
+    dailyMenuSizeId?: string | null;
     options: {
       groupId: string;
       optionId: string;
@@ -166,6 +171,15 @@ export async function createOrderAction(
       subtotal,
       options,
     });
+  }
+
+  // Marmitas do dia entram no mesmo pedido dos produtos, com preço e estoque
+  // recalculados no servidor a partir do cardápio vigente.
+  const dailyPricing = await priceDailyItems(parsed.data.specialItems);
+  if (!dailyPricing.ok) return { ok: false, error: dailyPricing.error };
+  for (const item of dailyPricing.items) {
+    orderItems.push(item);
+    total = roundMoney(total + item.subtotal);
   }
 
   const customer = await prisma.user.findUnique({
@@ -251,8 +265,12 @@ export async function createOrderAction(
   const recipientAddress = parsed.data.recipientAddress?.trim() ||
     (addressFields ? formatAddress(addressFields) : null);
 
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
+  let order;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      await reserveDailyStock(tx, dailyPricing.stock);
+
+      const created = await tx.order.create({
       data: {
         customerId: customer.id,
         subtotal: total,
@@ -274,6 +292,12 @@ export async function createOrderAction(
               unitPrice: i.unitPrice,
               quantity: i.quantity,
               subtotal: i.subtotal,
+              ...(i.dailyMenuMealId
+                ? {
+                    dailyMenuMealId: i.dailyMenuMealId,
+                    dailyMenuSizeId: i.dailyMenuSizeId,
+                  }
+                : {}),
               options: {
                 create: i.options.map((o) => ({
                   groupId: o.groupId,
@@ -341,8 +365,14 @@ export async function createOrderAction(
       },
     });
 
-    return created;
-  });
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("acabou de esgotar")) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
 
   await audit({
     userId: customer.id,
@@ -363,7 +393,9 @@ export async function createOrderAction(
   }).catch(() => undefined);
 
   revalidatePath("/admin/pedidos");
+  revalidatePath("/admin/fila-pedidos");
   revalidatePath("/admin/delivery");
+  revalidatePath("/marmitas-do-dia");
 
   return { ok: true, orderId: order.id, number: order.number, total: order.total };
 }

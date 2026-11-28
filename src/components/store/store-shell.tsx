@@ -382,7 +382,7 @@ function CartDrawer({
               <ShoppingBag className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-medium">Seu carrinho está vazio</p>
               <p className="text-xs text-muted-foreground">
-                Adicione produtos para começar seu pedido.
+                Adicione produtos ou marmitas do dia para começar.
               </p>
               <Button
                 className="mt-3"
@@ -417,6 +417,11 @@ function CartDrawer({
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold leading-tight">
+                        {item.special?.kind === "DAILY" && (
+                          <span className="mr-1 rounded bg-brand-50 px-1 py-0.5 text-[9px] font-bold uppercase text-brand-700">
+                            Marmita
+                          </span>
+                        )}
                         {item.name}
                       </p>
                       <button

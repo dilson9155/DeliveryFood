@@ -13,6 +13,8 @@ export type CartItem = {
   imageUrl?: string | null;
   maxQuantity?: number;
   options?: OptionChoice[];
+  /** Marmita do dia: preço e estoque são revalidados no servidor. */
+  special?: { kind: "DAILY"; mealId: string; sizeId: string };
 };
 
 type CartState = {
@@ -35,7 +37,7 @@ export const useCart = create<CartState>()(
             return {
               items: state.items.map((i) =>
                 cartItemKey(i.productId, i.options) === key
-                  ? { ...i, quantity: i.quantity + (item.quantity ?? 1) }
+                  ? { ...i, quantity: Math.min(i.quantity + (item.quantity ?? 1), i.maxQuantity ?? Infinity) }
                   : i
               ),
             };
@@ -52,7 +54,9 @@ export const useCart = create<CartState>()(
             quantity <= 0
               ? state.items.filter((i) => cartItemKey(i.productId, i.options) !== key)
               : state.items.map((i) =>
-                  cartItemKey(i.productId, i.options) === key ? { ...i, quantity } : i
+                  cartItemKey(i.productId, i.options) === key
+                    ? { ...i, quantity: Math.min(quantity, i.maxQuantity ?? Infinity) }
+                    : i
                 ),
         })),
       clear: () => set({ items: [] }),

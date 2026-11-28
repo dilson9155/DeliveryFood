@@ -145,28 +145,41 @@ const deliveryAddressSchema = z.object({
   zipCode: z.string().min(8).max(10),
 });
 
-export const createOrderSchema = z.object({
-  items: z.array(orderItemInputSchema).min(1, "Carrinho vazio"),
-  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
-  observation: z.string().max(500).optional().nullable(),
-  customerName: z.string().optional(),
-  customerPhone: z.string().optional(),
-  // Dados informados no checkout, gravados como snapshot para o recibo.
-  recipientName: z.string().min(2).max(120).optional(),
-  recipientPhone: phoneSchema.optional(),
-  recipientAddress: z.string().max(300).optional().nullable(),
-  delivery: z
-    .object({
-      mode: z.enum(["PICKUP", "DELIVERY"]),
-      addressId: z.string().optional(),
-      address: deliveryAddressSchema.optional(),
-      distanceKm: z.number().optional(),
-      fee: z.number().optional(),
-      lat: z.number().optional(),
-      lng: z.number().optional(),
-    })
-    .optional(),
+/** Marmita do dia no carrinho: preço e estoque sempre recalculados no servidor. */
+export const dailyCartSelectionSchema = z.object({
+  mealId: z.string().min(1),
+  sizeId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99),
 });
+
+export const createOrderSchema = z
+  .object({
+    items: z.array(orderItemInputSchema).max(60).default([]),
+    specialItems: z.array(dailyCartSelectionSchema).max(60).optional().default([]),
+    paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+    observation: z.string().max(500).optional().nullable(),
+    customerName: z.string().optional(),
+    customerPhone: z.string().optional(),
+    // Dados informados no checkout, gravados como snapshot para o recibo.
+    recipientName: z.string().min(2).max(120).optional(),
+    recipientPhone: phoneSchema.optional(),
+    recipientAddress: z.string().max(300).optional().nullable(),
+    delivery: z
+      .object({
+        mode: z.enum(["PICKUP", "DELIVERY"]),
+        addressId: z.string().optional(),
+        address: deliveryAddressSchema.optional(),
+        distanceKm: z.number().optional(),
+        fee: z.number().optional(),
+        lat: z.number().optional(),
+        lng: z.number().optional(),
+      })
+      .optional(),
+  })
+  .refine((data) => data.items.length + data.specialItems.length > 0, {
+    message: "Carrinho vazio",
+    path: ["items"],
+  });
 
 /** Cliente criado em segundos no PDV: apenas nome e telefone são obrigatórios. */
 export const quickCustomerSchema = z.object({
@@ -182,15 +195,45 @@ export const quickCustomerSchema = z.object({
     .transform((v) => v || null),
 });
 
-/** Pedido montado pelo atendente no PDV (sem entrega, sem geolocalização). */
-export const posOrderSchema = z.object({
-  customerId: z.string().min(1, "Selecione ou cadastre um cliente"),
-  items: z.array(orderItemInputSchema).min(1, "Carrinho vazio"),
-  paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
-  paidNow: z.boolean().optional().default(false),
-  amountReceived: z.number().finite().nonnegative().optional(),
-  observation: z.string().max(500).optional().nullable(),
+/** Marmita do dia no carrinho do PDV. Preço e estoque são recalculados no servidor. */
+const posDailyItemSchema = dailyCartSelectionSchema.extend({
+  kind: z.literal("DAILY"),
 });
+
+/** Self-service no carrinho do PDV, por quilo ou por pessoa. */
+const posSelfServiceItemSchema = z
+  .object({
+    kind: z.literal("SELF_SERVICE"),
+    mode: z.enum(["BY_WEIGHT", "FIXED"]),
+    weightGrams: z.number().finite().positive().max(10000).optional(),
+    people: z.number().int().min(1).max(99).optional(),
+  })
+  .refine(
+    (item) =>
+      item.mode === "BY_WEIGHT" ? item.weightGrams !== undefined : item.people !== undefined,
+    { message: "Informe o peso ou a quantidade de pessoas do self-service." }
+  );
+
+export const posSpecialItemSchema = z.discriminatedUnion("kind", [
+  posDailyItemSchema,
+  posSelfServiceItemSchema,
+]);
+
+/** Pedido montado pelo atendente no PDV (sem entrega, sem geolocalização). */
+export const posOrderSchema = z
+  .object({
+    customerId: z.string().min(1, "Selecione ou cadastre um cliente"),
+    items: z.array(orderItemInputSchema).max(60).default([]),
+    specialItems: z.array(posSpecialItemSchema).max(60).optional().default([]),
+    paymentMethod: z.enum(["CASH", "CARD", "PIX"]),
+    paidNow: z.boolean().optional().default(false),
+    amountReceived: z.number().finite().nonnegative().optional(),
+    observation: z.string().max(500).optional().nullable(),
+  })
+  .refine((data) => data.items.length + data.specialItems.length > 0, {
+    message: "Carrinho vazio",
+    path: ["items"],
+  });
 
 const menuDateSchema = z
   .string()

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Plus, Flame } from "lucide-react";
+import { Search, Plus, Flame, Soup } from "lucide-react";
 import { useCart } from "@/stores/cart";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,17 @@ type Product = {
   featured: boolean;
 };
 
+type DailyMeal = {
+  mealId: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  availableQty: number | null;
+  sizes: { id: string; name: string; price: number }[];
+};
+
+const DAILY_CATEGORY_ID = "daily";
+
 const CATEGORY_FALLBACK_ICONS: Record<string, string> = {
   Lanches: "🍔",
   Pizzas: "🍕",
@@ -39,15 +50,18 @@ export function Browse({
   categories,
   products,
   optionGroupsByProduct,
+  dailyMeals = [],
   open,
 }: {
   categories: Category[];
   products: Product[];
   optionGroupsByProduct: Record<string, OptionGroupView[]>;
+  dailyMeals?: DailyMeal[];
   open: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<Record<string, string>>({});
   const [configuring, setConfiguring] = useState<Product | null>(null);
   const { addItem } = useCart();
   const { show } = useToast();
@@ -85,17 +99,41 @@ export function Browse({
     setConfiguring(null);
   }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return products.filter((p) => {
-      const matchCategory = !selected || p.categoryId === selected;
-      const matchQuery =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        (p.description ?? "").toLowerCase().includes(q);
-      return matchCategory && matchQuery;
+  function addDailyMeal(meal: DailyMeal, sizeId: string) {
+    const size = meal.sizes.find((row) => row.id === sizeId);
+    if (!size) return;
+    addItem({
+      productId: `daily:${meal.mealId}:${size.id}`,
+      name: `${meal.name} · ${size.name}`,
+      unitPrice: size.price,
+      imageUrl: meal.imageUrl,
+      maxQuantity: meal.availableQty ?? undefined,
+      special: { kind: "DAILY", mealId: meal.mealId, sizeId: size.id },
     });
-  }, [products, query, selected]);
+    show("success", `${meal.name} · ${size.name} adicionado ao carrinho`);
+  }
+
+  const q = query.trim().toLowerCase();
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((p) => {
+        if (selected === DAILY_CATEGORY_ID) return false;
+        const matchCategory = !selected || p.categoryId === selected;
+        const matchQuery =
+          !q || p.name.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q);
+        return matchCategory && matchQuery;
+      }),
+    [products, query, selected]
+  );
+
+  const filteredDaily = useMemo(
+    () =>
+      dailyMeals.filter((meal) => {
+        if (selected && selected !== DAILY_CATEGORY_ID) return false;
+        return !q || meal.name.toLowerCase().includes(q) || (meal.description ?? "").toLowerCase().includes(q);
+      }),
+    [dailyMeals, query, selected]
+  );
 
   return (
     <div className="container-store py-6">
@@ -160,6 +198,19 @@ export function Browse({
         >
           Todos
         </button>
+        {dailyMeals.length > 0 && (
+          <button
+            onClick={() => setSelected(DAILY_CATEGORY_ID)}
+            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+              selected === DAILY_CATEGORY_ID
+                ? "border-brand-600 bg-brand-600 text-white"
+                : "border-border bg-card hover:bg-muted"
+            }`}
+          >
+            <span className="mr-1">🍱</span>
+            Marmitas do dia
+          </button>
+        )}
         {categories.map((c) => (
           <button
             key={c.id}
@@ -176,15 +227,27 @@ export function Browse({
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {filteredDaily.length === 0 && filteredProducts.length === 0 ? (
         <EmptyState
           icon={query || selected ? <Search className="h-8 w-8" /> : <span>🍽️</span>}
-          title={query || selected ? "Nenhum produto encontrado" : "Não encontramos produtos nessa categoria"}
+          title={query || selected ? "Nenhum item encontrado" : "Não encontramos itens nessa categoria"}
           description="Tente buscar por outro nome ou selecione outra categoria."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
+          {filteredDaily.map((meal) => (
+            <DailyMealCard
+              key={meal.mealId}
+              meal={meal}
+              open={open}
+              sizeId={selectedSize[meal.mealId] ?? meal.sizes[0]?.id ?? ""}
+              onSizeChange={(sizeId) =>
+                setSelectedSize((prev) => ({ ...prev, [meal.mealId]: sizeId }))
+              }
+              onAdd={(sizeId) => addDailyMeal(meal, sizeId)}
+            />
+          ))}
+          {filteredProducts.map((p) => (
             <ProductCard
               key={p.id}
               product={p}
@@ -250,6 +313,89 @@ function ProductCard({
           >
             <Plus className="h-3.5 w-3.5" />
             {configurable ? "Montar" : "Adicionar"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DailyMealCard({
+  meal,
+  open,
+  sizeId,
+  onSizeChange,
+  onAdd,
+}: {
+  meal: DailyMeal;
+  open: boolean;
+  sizeId: string;
+  onSizeChange: (sizeId: string) => void;
+  onAdd: (sizeId: string) => void;
+}) {
+  const size = meal.sizes.find((row) => row.id === sizeId) ?? meal.sizes[0];
+  const soldOut = meal.availableQty === 0;
+
+  return (
+    <div className="flex gap-3.5 rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50/70 to-card p-3.5 shadow-sm transition-shadow hover:shadow-md">
+      {meal.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={meal.imageUrl}
+          alt={meal.name}
+          className="h-24 w-24 shrink-0 rounded-xl object-cover"
+        />
+      ) : (
+        <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-3xl">
+          🍱
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center gap-2">
+          <h3 className="truncate text-sm font-bold leading-snug">{meal.name}</h3>
+          <span className="shrink-0 rounded-full bg-brand-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+            Marmita do dia
+          </span>
+        </div>
+        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+          {meal.description || "Refeição completa do dia."}
+        </p>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {meal.sizes.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onSizeChange(option.id)}
+              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                size?.id === option.id
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-border bg-card text-muted-foreground hover:border-brand-300"
+              }`}
+            >
+              {option.name} · {formatCurrency(option.price)}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-[10px] font-medium text-muted-foreground">
+          {meal.availableQty === null
+            ? "Sem limite de quantidade"
+            : soldOut
+              ? "Esgotado por hoje"
+              : `${meal.availableQty} unidade(s) restante(s)`}
+        </p>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+          <span className="text-base font-extrabold text-brand-700">
+            {size ? formatCurrency(size.price) : "—"}
+          </span>
+          <Button
+            size="sm"
+            disabled={!open || !size || soldOut}
+            onClick={() => size && onAdd(size.id)}
+            className="h-8 gap-1 rounded-xl px-3 text-xs"
+            title={!open ? "Estabelecimento fechado" : `Adicionar ${meal.name}`}
+          >
+            <Soup className="h-3.5 w-3.5" />
+            Adicionar
           </Button>
         </div>
       </div>

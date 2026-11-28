@@ -136,17 +136,26 @@ export function CheckoutForm({
 
     startTransition(async () => {
       const result = await createOrderAction({
-        items: items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          options: (item.options ?? []).map(
-            ({ groupId, optionId, quantity }): OptionSelection => ({
-              groupId,
-              optionId,
-              quantity,
-            })
-          ),
-        })),
+        items: items
+          .filter((item) => !item.special)
+          .map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            options: (item.options ?? []).map(
+              ({ groupId, optionId, quantity }): OptionSelection => ({
+                groupId,
+                optionId,
+                quantity,
+              })
+            ),
+          })),
+        specialItems: items
+          .filter((item) => item.special?.kind === "DAILY")
+          .map((item) => ({
+            mealId: item.special!.mealId,
+            sizeId: item.special!.sizeId,
+            quantity: item.quantity,
+          })),
         paymentMethod,
         observation: observation.trim() || null,
         recipientName: name.trim(),
@@ -383,7 +392,14 @@ export function CheckoutForm({
               {items.map((item) => (
                 <li key={cartItemKey(item.productId, item.options)} className="flex items-start justify-between gap-2 text-sm">
                   <span className="flex-1">
-                    <span className="font-medium text-foreground">{item.quantity}× {item.name}</span>
+                    <span className="font-medium text-foreground">
+                      {item.special?.kind === "DAILY" && (
+                        <span className="mr-1 rounded bg-brand-50 px-1 py-0.5 text-[9px] font-bold uppercase text-brand-700">
+                          Marmita
+                        </span>
+                      )}
+                      {item.quantity}× {item.name}
+                    </span>
                     {item.options && item.options.length > 0 && (
                       <span className="mt-0.5 block text-xs text-brand-700">{describeOptions(item.options)}</span>
                     )}
