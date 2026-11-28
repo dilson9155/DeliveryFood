@@ -9,7 +9,6 @@ import {
   BookOpen,
   CreditCard,
   FolderOpen,
-  Grid2X2,
   LayoutGrid,
   Receipt,
   Scale,
@@ -26,8 +25,6 @@ import {
   ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { can, type Permission, type SessionUser } from "@/lib/permissions";
 import { cn } from "@/lib/format";
 
@@ -109,16 +106,16 @@ function CardModule({ item, featured = false }: { item: ModuleItem; featured?: b
     <Link href={item.href} className="group block h-full">
       <div
         className={cn(
-          "relative flex h-full flex-col rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200",
+          "relative flex h-full flex-col rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all duration-200",
           "hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-500/10",
-          featured && "min-h-[132px] border-brand-200 bg-gradient-to-br from-brand-50/70 to-card"
+          featured && "min-h-[112px] border-brand-200 bg-gradient-to-br from-brand-50/70 to-card"
         )}
       >
         <div className="flex items-start justify-between gap-2">
           <span
             className={cn(
               "flex items-center justify-center rounded-xl bg-brand-50 text-brand-700 transition-transform group-hover:scale-105",
-              featured ? "h-11 w-11" : "h-10 w-10",
+              featured ? "h-10 w-10" : "h-9 w-9",
               item.accent && `${item.accent} text-white`
             )}
           >
@@ -126,7 +123,7 @@ function CardModule({ item, featured = false }: { item: ModuleItem; featured?: b
           </span>
           <ArrowUpRight className="h-4 w-4 text-muted-foreground/50 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-600" />
         </div>
-        <p className={cn("mt-3 font-extrabold leading-tight", featured ? "text-base" : "text-sm")}>
+        <p className="mt-2.5 text-sm font-extrabold leading-tight">
           {item.label}
         </p>
         <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{item.description}</p>
@@ -156,49 +153,25 @@ export function AdminMenuGrid({ user }: { user: SessionUser }) {
   const total = grouped.reduce((sum, entry) => sum + entry.items.length, 0);
 
   return (
-    <div className="container-app py-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/pdv">
-            <Button variant="ghost" size="sm">
-              <ShoppingCart className="h-4 w-4" /> Ir para o PDV
-            </Button>
-          </Link>
+    <div className="container-app py-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight">Menu geral</h1>
+          <p className="text-xs text-muted-foreground">Escolha um módulo para abrir.</p>
         </div>
-        <Badge tone="brand" className="gap-1">
-          <Grid2X2 className="h-3.5 w-3.5" /> {total} módulos disponíveis
-        </Badge>
-      </div>
-
-      <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF9800] to-[#F57C00] p-6 text-white shadow-lg shadow-brand-500/20 sm:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/80">
-              Painel administrativo
-            </p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Menu geral</h1>
-            <p className="mt-2 max-w-xl text-sm text-white/90">
-              Todos os módulos do RestaurantePro em um só lugar. Escolha um card para abrir.
-            </p>
-          </div>
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-            <Grid2X2 className="h-7 w-7" />
-          </span>
+        <div className="relative w-full sm:w-80 lg:w-96">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar módulo..."
+            className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-4 text-sm shadow-sm placeholder:text-muted-foreground focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          />
         </div>
-      </header>
-
-      <div className="relative mt-6">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar módulo, exemplo: caixa, marmita, entrega..."
-          className="h-12 w-full rounded-2xl border border-border bg-card pl-10 pr-4 text-sm shadow-sm placeholder:text-muted-foreground focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-        />
       </div>
 
       {quick.length > 0 && (
-        <section className="mt-7">
+        <section className="mt-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="h-5 w-1 rounded-full bg-brand-500" />
             <h2 className="text-sm font-extrabold">Acesso rápido</h2>
@@ -212,7 +185,7 @@ export function AdminMenuGrid({ user }: { user: SessionUser }) {
       )}
 
       {grouped.map(({ group, items }) => (
-        <section key={group} className="mt-7">
+        <section key={group} className="mt-5">
           <div className="mb-3 flex items-center gap-2">
             <span className="h-5 w-1 rounded-full bg-brand-500" />
             <h2 className="text-sm font-extrabold">{group}</h2>
@@ -227,7 +200,7 @@ export function AdminMenuGrid({ user }: { user: SessionUser }) {
       ))}
 
       {total === 0 && (
-        <div className="mt-10 rounded-2xl border border-dashed border-border bg-card px-4 py-14 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center">
           <Search className="mx-auto h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-bold">Nenhum módulo encontrado</p>
           <p className="mt-1 text-xs text-muted-foreground">Tente outro termo na busca.</p>
