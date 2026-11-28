@@ -177,7 +177,7 @@ function SettingsPanelInner({
       banner.show({
         type: "success",
         title: "Dados de teste removidos",
-        message: `${s.ordersDeleted} pedido(s), ${s.deliveries} entrega(s) e ${s.campaigns} campanha(s) foram removidos.`,
+        message: `${s.ordersDeleted} pedido(s) e ${s.deliveries} entrega(s) foram removidos.`,
         details: [
           { label: "Pedidos removidos", value: s.ordersDeleted },
           { label: "Entregas", value: s.deliveries },
@@ -186,7 +186,6 @@ function SettingsPanelInner({
           { label: "Pagamentos / recebíveis", value: `${s.payments} / ${s.receivables}` },
           { label: "Itens / histórico", value: `${s.orderItems} / ${s.orderHistory}` },
           { label: "Movimentos de caixa", value: s.cashMovements },
-          { label: "Campanhas + destinatários", value: `${s.campaigns} + ${s.campaignRecipients}` },
           { label: "Notificações", value: s.notifications },
         ],
         duration: 0,

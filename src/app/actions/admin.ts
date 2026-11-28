@@ -575,10 +575,6 @@ export async function deleteCustomerAction(input: {
   await prisma.$transaction([
     prisma.address.deleteMany({ where: { userId: customer.id } }),
     prisma.notification.deleteMany({ where: { userId: customer.id } }),
-    prisma.campaignRecipient.updateMany({
-      where: { customerId: customer.id },
-      data: { name: "Cliente excluído", phone: "" },
-    }),
     prisma.user.update({
       where: { id: customer.id },
       data: {

@@ -29,8 +29,7 @@ export type Permission =
   | "delivery.assign"
   | "orders.discount"
   | "finance.view"
-  | "finance.manage"
-  | "messages.manage";
+  | "finance.manage";
 
 const MATRIX: Record<Permission, EmployeeRole[]> = {
   "dashboard.view": ["ADMIN", "MANAGER", "ATTENDANT", "KITCHEN", "CASHIER", "MOTOBOY"],
@@ -54,7 +53,6 @@ const MATRIX: Record<Permission, EmployeeRole[]> = {
   "orders.discount": ["ADMIN", "MANAGER", "ATTENDANT", "CASHIER"],
   "finance.view": ["ADMIN", "MANAGER", "CASHIER"],
   "finance.manage": ["ADMIN", "MANAGER"],
-  "messages.manage": ["ADMIN", "MANAGER", "ATTENDANT"],
 };
 
 export function can(user: SessionUser | null | undefined, permission: Permission): boolean {

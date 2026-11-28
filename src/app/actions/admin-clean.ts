@@ -43,8 +43,6 @@ type CleanSummary = {
   orderHistory: number;
   orderItems: number;
   receivables: number;
-  campaigns: number;
-  campaignRecipients: number;
   notifications: number;
 };
 
@@ -99,11 +97,6 @@ export async function cleanTestDataAction(input: {
     prisma.order.deleteMany({ where: whereOrders }),
   ]);
 
-  const [delRecs, delCamps] = await prisma.$transaction([
-    prisma.campaignRecipient.deleteMany({}),
-    prisma.campaign.deleteMany({}),
-  ]);
-
   const delNot = await prisma.notification.deleteMany({});
 
   const summary: CleanSummary = {
@@ -119,8 +112,6 @@ export async function cleanTestDataAction(input: {
     orderHistory: delHist.count,
     orderItems: delItems.count,
     receivables: delReceiv.count,
-    campaigns: delCamps.count,
-    campaignRecipients: delRecs.count,
     notifications: delNot.count,
   };
 

@@ -90,13 +90,6 @@ async function main() {
     orders: delOrders.count,
   });
 
-  // Limpa campanhas de disparo + destinatários (histórico de testes)
-  const [delRecs, delCamps] = await prisma.$transaction([
-    prisma.campaignRecipient.deleteMany({}),
-    prisma.campaign.deleteMany({}),
-  ]);
-  console.log(`  Campanhas: ${delCamps.count} | Destinatários: ${delRecs.count}`);
-
   // Limpa notificações de teste
   const delNot = await prisma.notification.deleteMany({});
   console.log(`  Notificações: ${delNot.count}`);
